@@ -27,42 +27,27 @@ This skill is designed for code generation, refactoring, and review workflows wh
 
 ## Installation
 
-Install this repository into your Codex skills directory as `python-type-style`.
-
-Skill directory:
-
-- macOS / Linux: `${CODEX_HOME:-$HOME/.codex}/skills/python-type-style`
-- Windows PowerShell: `$env:CODEX_HOME\skills\python-type-style` or `$HOME\.codex\skills\python-type-style`
+This repository is a plain skill bundle. Clone or download it, then place the folder in whatever skill search path your agent runtime uses.
 
 Recommended method with `git`:
 
-macOS / Linux:
-
 ```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-git clone https://github.com/lolkda/python-type-style.git "${CODEX_HOME:-$HOME/.codex}/skills/python-type-style"
+git clone https://github.com/lolkda/python-type-style.git
 ```
 
-Windows PowerShell:
+If you do not want to use `git`, download the repository archive from GitHub and extract it locally.
 
-```powershell
-$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { "$HOME\.codex" }
-$null = New-Item -ItemType Directory -Force -Path "$codexHome\skills"
-git clone https://github.com/lolkda/python-type-style.git "$codexHome\skills\python-type-style"
+The runtime should see a folder named `python-type-style` containing:
+
+```text
+python-type-style/
+├── SKILL.md
+├── agents/
+├── examples/
+└── references/
 ```
 
-If you do not want to use `git`, download and extract the repository archive, then place the extracted folder at the same target path and rename it to `python-type-style`.
-
-Optional method with the built-in Codex `skill-installer`:
-
-```bash
-python "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --repo lolkda/python-type-style \
-  --path . \
-  --name python-type-style
-```
-
-After installation, restart Codex to pick up the new skill.
+If your runtime loads skills from a dedicated directory, copy or symlink this folder into that directory with the name `python-type-style`.
 
 ## Usage
 
