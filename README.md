@@ -27,17 +27,37 @@ This skill is designed for code generation, refactoring, and review workflows wh
 
 ## Installation
 
-Remote install with the Codex skill installer:
+This repository is meant to be installed with the built-in Codex `skill-installer` skill.
 
-```powershell
-python C:\Users\Administrator\.codex\skills\.system\skill-installer\scripts\install-skill-from-github.py --repo lolkda/python-type-style --path . --name python-type-style
+On macOS / Linux:
+
+```bash
+python "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --repo lolkda/python-type-style \
+  --path . \
+  --name python-type-style
 ```
 
-You can also install from the repository URL:
+On Windows PowerShell:
 
 ```powershell
-python C:\Users\Administrator\.codex\skills\.system\skill-installer\scripts\install-skill-from-github.py --url https://github.com/lolkda/python-type-style --path . --name python-type-style
+$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { "$HOME\.codex" }
+python "$codexHome\skills\.system\skill-installer\scripts\install-skill-from-github.py" `
+  --repo lolkda/python-type-style `
+  --path . `
+  --name python-type-style
 ```
+
+You can also install from the repository URL instead of `--repo`:
+
+```bash
+python "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
+  --url https://github.com/lolkda/python-type-style \
+  --path . \
+  --name python-type-style
+```
+
+By default, `CODEX_HOME` falls back to `~/.codex`.
 
 After installation, restart Codex to pick up the new skill.
 
