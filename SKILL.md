@@ -1,29 +1,6 @@
 ---
 name: typed-fastapi
-description: >
-  Type-first Python writing, refactoring, and review guidance for FastAPI + Pydantic v2 + SQLAlchemy 2
-  codebases on Python 3.12+. Enforces keyword-only signatures, docstrings with Args/Returns business
-  meaning, `BaseResponse[T]` unified envelope, PEP 695 typing syntax, and strict outward contract /
-  persistence boundary separation.
-
-  TRIGGER when: file imports `fastapi` / `pydantic` / `sqlalchemy` (especially `sqlalchemy.orm`,
-  `sqlalchemy.ext.asyncio`); user writes or modifies a FastAPI route, router, dependency, or middleware;
-  user defines a Pydantic v2 `BaseModel` (request, response, or internal); user writes a SQLAlchemy 2 ORM
-  model (`Mapped`, `mapped_column`, `DeclarativeBase`), repository, or query; user refactors untyped or
-  loosely-typed Python functions; user adds docstrings, type annotations, or keyword-only signatures;
-  user reviews Python code for contract, boundary, or async safety; user asks about `BaseResponse[T]` /
-  `PageData[T]` / unified response envelope / business error code layout; user asks about typing
-  primitives (`Protocol`, `TypedDict`, `Self`, `@overload`, generics, `Annotated` aliases, `Literal`,
-  `Final`, `ClassVar`, `TYPE_CHECKING`, `NewType`, `TypeGuard` / `TypeIs`, `Never` / `assert_never`,
-  `ParamSpec`, `Concatenate`, PEP 695 `type` / `class Foo[T]` syntax); user asks about async safety,
-  blocking I/O in `async def`, `AsyncSession` management, `selectinload` / `joinedload` strategy, or
-  model layering / mirror-model anti-patterns.
-
-  SKIP: file imports `flask` / `django` / `starlette`-only web framework code without FastAPI; legacy
-  SQLAlchemy 1.x `Query`-style code where the task is not migration; Pydantic v1 codebase
-  (`from pydantic.v1 import ...`) without v2 upgrade intent; pure data science / numpy / pandas /
-  notebook code; general Python questions (algorithms, scripts, CLI tools) not tied to the FastAPI +
-  Pydantic + SQLAlchemy stack; Python 2 or pre-3.12 codebases that cannot use PEP 695 syntax.
+description: Strict FastAPI, Pydantic v2, and SQLAlchemy 2 typing/style guidance for Python 3.12+.
 ---
 
 # Python Type Style
