@@ -25,9 +25,23 @@ This skill is designed for code generation, refactoring, and review workflows wh
 └── references/
 ```
 
-## Usage
+## Installation
 
-Install or copy this skill into your local skills directory, keeping the folder name as `python-type-style`.
+Remote install with the Codex skill installer:
+
+```powershell
+python C:\Users\Administrator\.codex\skills\.system\skill-installer\scripts\install-skill-from-github.py --repo lolkda/python-type-style --path . --name python-type-style
+```
+
+You can also install from the repository URL:
+
+```powershell
+python C:\Users\Administrator\.codex\skills\.system\skill-installer\scripts\install-skill-from-github.py --url https://github.com/lolkda/python-type-style --path . --name python-type-style
+```
+
+After installation, restart Codex to pick up the new skill.
+
+## Usage
 
 Typical prompt:
 
