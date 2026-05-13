@@ -27,9 +27,33 @@ This skill is designed for code generation, refactoring, and review workflows wh
 
 ## Installation
 
-This repository is meant to be installed with the built-in Codex `skill-installer` skill.
+Install this repository into your Codex skills directory as `python-type-style`.
 
-On macOS / Linux:
+Skill directory:
+
+- macOS / Linux: `${CODEX_HOME:-$HOME/.codex}/skills/python-type-style`
+- Windows PowerShell: `$env:CODEX_HOME\skills\python-type-style` or `$HOME\.codex\skills\python-type-style`
+
+Recommended method with `git`:
+
+macOS / Linux:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+git clone https://github.com/lolkda/python-type-style.git "${CODEX_HOME:-$HOME/.codex}/skills/python-type-style"
+```
+
+Windows PowerShell:
+
+```powershell
+$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { "$HOME\.codex" }
+$null = New-Item -ItemType Directory -Force -Path "$codexHome\skills"
+git clone https://github.com/lolkda/python-type-style.git "$codexHome\skills\python-type-style"
+```
+
+If you do not want to use `git`, download and extract the repository archive, then place the extracted folder at the same target path and rename it to `python-type-style`.
+
+Optional method with the built-in Codex `skill-installer`:
 
 ```bash
 python "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
@@ -37,27 +61,6 @@ python "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/insta
   --path . \
   --name python-type-style
 ```
-
-On Windows PowerShell:
-
-```powershell
-$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { "$HOME\.codex" }
-python "$codexHome\skills\.system\skill-installer\scripts\install-skill-from-github.py" `
-  --repo lolkda/python-type-style `
-  --path . `
-  --name python-type-style
-```
-
-You can also install from the repository URL instead of `--repo`:
-
-```bash
-python "${CODEX_HOME:-$HOME/.codex}/skills/.system/skill-installer/scripts/install-skill-from-github.py" \
-  --url https://github.com/lolkda/python-type-style \
-  --path . \
-  --name python-type-style
-```
-
-By default, `CODEX_HOME` falls back to `~/.codex`.
 
 After installation, restart Codex to pick up the new skill.
 
