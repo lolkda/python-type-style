@@ -34,6 +34,25 @@ refactored or reviewed.
 - Internal helpers, local transforms, and module-private utilities may use lightweight structures when no
   stable outward contract exists.
 
+## Class vs Function Quick Rules
+
+- Default to module-level functions. Promote to a class only when at least one of:
+  1. **Long-lived state** carried across calls (cache / session / pool / cookies / in-memory index / caches with their own invalidation policy).
+  2. **Lifecycle** the caller must manage (`open → use → close`, `__aenter__/__aexit__`).
+  3. **Identity** — the object represents a system entity (`User`, `Order`, `Task`, `Session`, `Connection`).
+  4. **Behavior aggregated** around one shared internal dataset (`Cart.add_item` / `Cart.total_price`).
+  5. **Invariants** that must stay valid across mutations (`BankAccount` balance ≥ 0, state machine).
+  6. **Polymorphism** — multiple swappable implementations behind one interface (`StorageBackend`, `PaymentProvider`).
+  7. **Runtime context** binding several values for one execution scope (`RequestContext`, `CrawlerContext`).
+  8. **Concurrency ownership** — the object owns synchronization primitives or coordination state (lock, queue, semaphore, rate limiter, dedup window, retry controller).
+  9. **Protocol / sequenced operations** — multiple operations must occur in a strict order and the class enforces sequence correctness as an internal state machine (`connect → authenticate → send`).
+- Declarative-shape `class` (Pydantic `BaseModel`, `pydantic_settings.BaseSettings`, SQLAlchemy ORM,
+  `dataclass`) always stays class — class syntax used for schema, not for behavior.
+- Forbidden: `class FooUtils:` / `class XxxHelpers:` whose body is only `@staticmethod` / `@classmethod`
+  with no shared state — Python modules are namespaces; flatten to module-level functions.
+
+Full treatment: [references/class-vs-function.md](references/class-vs-function.md).
+
 ## Typing Quick Rules
 
 - Avoid `Any` except at hard interop boundaries.
@@ -91,6 +110,15 @@ Full treatment: [references/sqlalchemy2-style.md](references/sqlalchemy2-style.m
 - Non-field class attributes use `ClassVar[...]` to opt out of Pydantic field collection.
 - No mirror-model chains: do not add a `BaseModel` layer that does not change contract, validation,
   serialization, permission, aggregation, or persistence semantics.
+- No pass-through re-wrap at call sites: if a function's return shape and semantics equal its callee's
+  `BaseModel` return value, return that value directly. Do not reconstruct via `AModel(**b.model_dump())`
+  or `AModel.model_validate(b)`. The only allowed wrap is `BaseResponse.ok(...)` at an outward boundary,
+  because the envelope adds `code` / `message` semantics.
+- Config-first over new models: if a proposed new `BaseModel` differs from the source only by something
+  configurable on the source — `model_config = ConfigDict(...)`, `Field(serialization_alias=...,
+  validation_alias=..., exclude=..., default_factory=..., ...)`, or `@field_validator` /
+  `@model_validator` — configure the source model. Do not introduce a new layer to express a difference
+  that is really a config switch.
 
 Full treatment: [references/pydantic-v2-style.md](references/pydantic-v2-style.md).
 
@@ -131,6 +159,8 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 - `BaseModel` fields without `Field(...)`; non-Chinese or placeholder `description`.
 - Per-endpoint `XxxResponse` model duplicating `code` / `message` / `data` — use `BaseResponse[T]`.
 - Mirror-model chains (`UserOrmSchema` → `UserResponse` with identical fields).
+- Pass-through re-wrap at call sites: `return AModel(**b.model_dump())` or `return AModel.model_validate(b)` when no field, validation, permission, serialization, or aggregation change happens between caller and callee.
+- Spinning up a new `BaseModel` layer to express a difference that could be set on the source model via `ConfigDict`, `Field(...)` options, or a validator (alias / `by_alias` / `extra` / `frozen` / `exclude` / serialization shape, etc.) — configure the source model instead.
 - Class-level constants on Pydantic v2 models without `ClassVar[...]`.
 - Legacy `session.query(...)` in new SQLAlchemy 2 code; ORM columns without `Mapped[...]`.
 - Sharing one `Session` / `AsyncSession` across unrelated request or task scopes.
@@ -141,6 +171,7 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 - `@property` on a `BaseModel` when the value must appear in `model_dump()` / OpenAPI — use `@computed_field` paired with `@property`.
 - `@cached_property` on a mutable ORM entity or mutable Pydantic model without an invalidation strategy.
 - `@xxx.setter` on Pydantic / ORM domain models for business validation — use validators or named methods.
+- `class XxxUtils:` / `class XxxHelpers:` whose body is only `@staticmethod` / `@classmethod` with no shared state — Python modules are namespaces; flatten to module-level functions.
 
 ## References Index
 
@@ -154,5 +185,6 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 | `@property` / `@cached_property` / `@computed_field` / `@hybrid_property` usage discipline + setter ban | [property-usage.md](references/property-usage.md) | [property_usage.py](examples/property_usage.py) |
 | Async safety, blocking I/O, sync-in-async anti-patterns | [async-concurrency.md](references/async-concurrency.md) | — |
 | Outward vs persistence boundary, exceptions and priorities, deviation rules | [architecture-boundary.md](references/architecture-boundary.md) | — |
+| Class vs Function decision (state / lifecycle / identity / aggregation / invariants / polymorphism / runtime context, namespace-grouping anti-pattern) | [class-vs-function.md](references/class-vs-function.md) | — |
 
 Historical versions of this skill are archived under `archive/`.

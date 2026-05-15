@@ -21,12 +21,25 @@
 ## Model Layering Rules
 
 Do not introduce mirror-model chains that duplicate the same fields across layers with no change in semantics.
+
+**Config-first over new models.** Before adding a new layer, check whether the desired difference can be set
+on the source model itself:
+
+- `model_config = ConfigDict(serialize_by_alias=True, populate_by_name=True, extra="ignore", frozen=True, ...)`
+- `Field(serialization_alias=..., validation_alias=..., exclude=..., repr=..., default_factory=..., ...)`
+- `@field_validator` / `@model_validator(mode="after")`
+
+If the difference is expressible this way, configure the source model. The criteria below justify a new
+model only when one model genuinely cannot carry both behaviors — for example, the same data must be
+exposed to multiple consumers with incompatible serialization or validation forms, or the new behavior
+depends on context (permission, tenant, caller identity) that the source model cannot see.
+
 Add a new `BaseModel` layer only when it changes at least one of:
 
 - Outward API contract
-- Validation behavior
+- Validation behavior (and the validation cannot be expressed via validators on the source model)
 - Permission visibility
-- Serialization behavior
+- Serialization behavior (and the serialization cannot be expressed via `ConfigDict` / `Field(...)` on the source model)
 - Aggregation semantics
 - Persistence representation
 
@@ -60,6 +73,52 @@ class UserDetailData(BaseModel):
 # In service:
 return BaseResponse.ok(UserDetailData(user_id=user.id, nickname=user.nickname))
 ```
+
+## Call-site rule: no pass-through re-wrap
+
+The layering rule above governs *definitions*. The same principle applies at *call sites*: if a function's
+return shape and semantics equal its callee's `BaseModel` return value, return the callee's result directly.
+Do not reconstruct a structurally equivalent model. The only allowed wrap at an outward boundary is
+`BaseResponse.ok(...)`, which adds `code` / `message` semantics.
+
+Bad — caller re-wraps a structurally equivalent model:
+
+```python
+def build_user_detail(*, user_id: int) -> UserDetailData:
+    user = repo.get_user(user_id=user_id)
+    return UserDetailData(user_id=user.id, nickname=user.nickname)
+
+
+def get_user_detail(*, user_id: int) -> UserDetailData:
+    detail = build_user_detail(user_id=user_id)
+    return UserDetailData(**detail.model_dump())   # identical shape, wasted construction
+    # equivalent and equally bad:
+    # return UserDetailData.model_validate(detail)
+```
+
+Good — return the callee's value directly; only wrap when the boundary adds semantics:
+
+```python
+def get_user_detail(*, user_id: int) -> UserDetailData:
+    return build_user_detail(user_id=user_id)
+
+
+@router.api_route(
+    path="/users/{user_id}",
+    methods=["GET"],
+    response_model=BaseResponse[UserDetailData],
+    tags=["users"],
+    summary="获取用户详情",
+)
+async def read_user(*, user_id: int) -> BaseResponse[UserDetailData]:
+    detail = build_user_detail(user_id=user_id)
+    return BaseResponse.ok(detail)   # envelope adds code / message semantics
+```
+
+The rule applies symmetrically:
+
+- If `AModel` and `BModel` are structurally equivalent, the definition itself is a mirror-model chain — collapse the duplicate.
+- If only one model exists but a caller still re-constructs it from a callee's return value, the call site is a pass-through re-wrap — return the callee's value directly.
 
 ## Model with ClassVar and validator
 
@@ -100,6 +159,8 @@ class UserDetailData(BaseModel):
 - Optional fields without explicit `default` or `default_factory`.
 - Mirror-model chains (`UserOrmSchema` → `UserResponse` with identical fields).
 - Chained `model_validate()` / `model_dump()` calls between structurally equivalent models.
+- Pass-through re-wrap at call sites: `return AModel(**b.model_dump())` or `return AModel.model_validate(b)` where the caller's return shape and semantics already equal the callee's `BaseModel` return value — return the callee's value directly instead.
+- Spinning up a new `BaseModel` layer to express a difference that could be set on the source model via `ConfigDict`, `Field(...)` options, or a validator (alias / `by_alias` / `extra` / `frozen` / `exclude` / serialization shape, etc.) — configure the source model instead.
 - Class-level constants declared without `ClassVar[...]` wrapper — Pydantic will treat them as fields.
 
 ## Runnable counterparts
