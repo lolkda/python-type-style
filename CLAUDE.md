@@ -38,6 +38,16 @@ SKILL.md                  ← daily-driver rules, ~150 lines, loaded into every 
 
 The References Index table at the bottom of `SKILL.md` is load-bearing — every reference and example should appear in it. When adding a new reference or example, add the row.
 
+## Reference writing policy
+
+`references/*.md` must read like behavior constraints, not library tutorials:
+
+- Prefer rule tables, `Default / Allowed exception / Forbidden` matrices, anti-pattern lists, and runnable counterpart links.
+- Do not add tutorial sections that explain general FastAPI, Pydantic, SQLAlchemy, or typing mechanics.
+- Rationale is allowed only as one short failure-mode clause attached to a rule.
+- Do not duplicate full code examples already present in `examples/`; link to the runnable counterpart instead.
+- Add catalogue entries only when this skill has a project-specific opinion that differs from ordinary modern Python practice.
+
 ## Load-bearing conventions inside the skill content
 
 These are content conventions to preserve when editing rules, references, or examples — not generic Python style suggestions:

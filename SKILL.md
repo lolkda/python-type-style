@@ -8,9 +8,9 @@ description: Strict FastAPI, Pydantic v2, and SQLAlchemy 2 typing/style guidance
 ## Overview
 
 Enforce a strict, type-first engineering style on FastAPI + Pydantic v2 + SQLAlchemy 2 codebases targeting
-Python 3.12+. The high-frequency daily rules live in this file; deep treatment, examples, and runnable
-counterparts live under `references/` and `examples/`. Apply these rules to new code and to any code being
-refactored or reviewed.
+Python 3.12+. Apply these rules when writing new Python and when refactoring or reviewing existing code. Each
+section gives enforceable rules; for edge cases and rationale, follow the `Full treatment:` link to
+`references/`, and see `examples/` for runnable counterparts.
 
 ## Core Rules
 
@@ -177,7 +177,7 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 
 | Topic | Reference | Runnable example |
 |---|---|---|
-| Typing primitives (`Protocol`, `TypedDict`, `Self`, `@overload`, generics, `Annotated` aliases, `Literal`, `Final` / `ClassVar`, `TYPE_CHECKING`, `cast`, `NewType`, `TypeGuard` / `TypeIs`, `Never` / `assert_never`, `ParamSpec`, `@final` / `@override`, PEP 695 `type`) | [typing-usage.md](references/typing-usage.md) | [repository.py](examples/repository.py), [protocol.py](examples/protocol.py), [overload.py](examples/overload.py), [paramspec.py](examples/paramspec.py) |
+| Typing defaults, project exceptions, and forbidden legacy forms | [typing-usage.md](references/typing-usage.md) | [repository.py](examples/repository.py), [protocol.py](examples/protocol.py), [overload.py](examples/overload.py), [paramspec.py](examples/paramspec.py) |
 | Unified response envelope `BaseResponse[T]` + `PageData[T]` + exception handlers | [response-contract.md](references/response-contract.md) | [base_response.py](examples/base_response.py), [route.py](examples/route.py) |
 | FastAPI routes, parameter sources, error handling, deviations for streaming | [fastapi-style.md](references/fastapi-style.md) | [route.py](examples/route.py), [base_response.py](examples/base_response.py) |
 | SQLAlchemy 2 ORM, async repository, relationship loading | [sqlalchemy2-style.md](references/sqlalchemy2-style.md) | [repository.py](examples/repository.py) |
@@ -185,6 +185,4 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 | `@property` / `@cached_property` / `@computed_field` / `@hybrid_property` usage discipline + setter ban | [property-usage.md](references/property-usage.md) | [property_usage.py](examples/property_usage.py) |
 | Async safety, blocking I/O, sync-in-async anti-patterns | [async-concurrency.md](references/async-concurrency.md) | — |
 | Outward vs persistence boundary, exceptions and priorities, deviation rules | [architecture-boundary.md](references/architecture-boundary.md) | — |
-| Class vs Function decision (state / lifecycle / identity / aggregation / invariants / polymorphism / runtime context, namespace-grouping anti-pattern) | [class-vs-function.md](references/class-vs-function.md) | — |
-
-Historical versions of this skill are archived under `archive/`.
+| Class vs Function decision checklist and namespace-grouping anti-patterns | [class-vs-function.md](references/class-vs-function.md) | — |
