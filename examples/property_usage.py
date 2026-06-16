@@ -6,12 +6,13 @@
 """
 
 from functools import cached_property
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field
 from sqlalchemy import String, func, select
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql.elements import ColumnElement
 
 from _shared import AsyncSession, Base
 
@@ -96,12 +97,12 @@ class Article(Base):
 
     @title_length.expression
     @classmethod
-    def title_length(cls) -> Any:
+    def title_length(cls) -> ColumnElement[int]:
         """
         SQL 侧:返回 char_length(title) 表达式,可用于 select / where / order_by。
 
         Returns:
-            Any: SQLAlchemy ColumnElement,代表 SQL 函数表达式。
+            ColumnElement[int]: SQLAlchemy 整数表达式,代表标题字符长度。
         """
         return func.char_length(cls.title)
 

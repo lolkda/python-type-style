@@ -1,4 +1,4 @@
 interface:
   display_name: "Python Type Style"
   short_description: "Modern type-first style guidance for Python code"
-  default_prompt: "Use $python-type-style to write or refactor this Python code in a FastAPI- and Pydantic-friendly, type-first style."
+  default_prompt: "Use $python-typed-development-standards to write or refactor this Python code in a FastAPI- and Pydantic-friendly, type-first style."

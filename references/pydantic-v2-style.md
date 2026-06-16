@@ -73,3 +73,12 @@ semantics.
 - `BaseResponse[T]` + `PageData[T]` with `ok` / `fail` factories — see `examples/base_response.py`.
 - Shared outward model definitions — see `examples/_shared.py`.
 - `@computed_field` and setter anti-pattern comparisons — see `examples/property_usage.py`.
+
+## Official Reference
+
+For Pydantic v2 implementation details, prefer the official LLM index as the first documentation route:
+
+- https://pydantic.dev/docs/validation/llms.txt
+
+Use the index to choose the relevant official page, then load only that page for the current task. Keep this
+skill focused on project policy; do not copy broad official documentation into it.

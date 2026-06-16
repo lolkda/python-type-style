@@ -54,7 +54,7 @@ If your runtime loads skills from a dedicated directory, copy or symlink this fo
 Typical prompt:
 
 ```text
-Use $python-type-style to write or refactor this Python code in a FastAPI- and Pydantic-friendly, type-first style.
+Use $python-typed-development-standards to write or refactor this Python code in a FastAPI- and Pydantic-friendly, type-first style.
 ```
 
 ## Contents

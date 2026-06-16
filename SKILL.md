@@ -1,6 +1,6 @@
 ---
-name: typed-fastapi
-description: Strict FastAPI, Pydantic v2, and SQLAlchemy 2 typing/style guidance for Python 3.12+.
+name: python-typed-development-standards
+description: Use when implementing, refactoring, reviewing, or fixing FastAPI, Pydantic v2, SQLAlchemy 2, or Python backend code; enforce strict typing, response contracts, async safety, and project style rules.
 ---
 
 # Python Type Style

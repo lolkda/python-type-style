@@ -16,13 +16,13 @@ python -m py_compile examples/<file>.py
 
 That is the closest thing to a "test" in this repo.
 
-## Identifier triple — they are not the same
+## Identifier mapping
 
 - **Folder / repo name:** `python-type-style`
-- **Skill frontmatter `name:` in `SKILL.md`:** `typed-fastapi` (this is what skill loaders register)
-- **Invocation prefix in prompts / `agents/openai.yaml`:** `$python-type-style`
+- **Skill frontmatter `name:` in `SKILL.md`:** `python-typed-development-standards` (this is what skill loaders register)
+- **Invocation prefix in prompts / `agents/openai.yaml`:** `$python-typed-development-standards`
 
-When editing `SKILL.md` frontmatter, the README, or `agents/openai.yaml`, keep these three coherent with the existing convention — do not unify them. The frontmatter name is the registration key; the `$`-prefixed token is the user-facing trigger; the folder name is what runtimes look for on disk.
+When editing `SKILL.md` frontmatter, the README, or `agents/openai.yaml`, keep the registered skill name and user-facing `$` trigger aligned. Keep the folder / repo name stable unless the repository itself is intentionally renamed.
 
 ## Architecture: how the three layers fit together
 
