@@ -291,9 +291,9 @@ class GatewayResponsesRequest(BaseModel):
         store: bool = False,
         text_verbosity: TextVerbosity = "low",
         parallel_tool_calls: bool = True,
-    ) -> dict[str, object]:
+    ) -> PydanticAIModelSettings:
         """
-        生成 Pydantic AI SDK 调用网关形态 Responses 接口所需的模型配置字典。
+        生成 Pydantic AI SDK 调用网关形态 Responses 接口所需的模型配置模型。
 
         Args:
             reasoning_effort: 推理强度,传给 OpenAIResponsesModel。
@@ -302,9 +302,9 @@ class GatewayResponsesRequest(BaseModel):
             parallel_tool_calls: 是否允许模型并行调用工具。
 
         Returns:
-            dict[str, object]: 仅在最终 SDK 调用边界使用的 model_settings 字典。
+            PydanticAIModelSettings: 仅在最终 SDK 调用边界序列化的模型设置。
         """
-        settings = PydanticAIModelSettings(
+        return PydanticAIModelSettings(
             openai_reasoning_effort=reasoning_effort,
             openai_store=store,
             openai_text_verbosity=text_verbosity,
@@ -313,7 +313,6 @@ class GatewayResponsesRequest(BaseModel):
             extra_headers=self.headers(),
             extra_body=self.extra_body(),
         )
-        return settings.to_sdk_dict()
 
 
 # Anti-pattern reference only:
@@ -326,6 +325,7 @@ class GatewayResponsesRequest(BaseModel):
 # Prefer:
 # request = GatewayResponsesRequest.create()
 # settings = request.model_settings()
+# sdk_kwargs = settings.to_sdk_dict()
 
 
 __all__ = [

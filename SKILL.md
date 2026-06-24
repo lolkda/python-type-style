@@ -25,12 +25,16 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
 - Scattered `build_xxx(context=...)` helpers are not used when the outputs belong to one request/config/domain
   object.
 - Request/config/domain object APIs prefer `Request.create().model_settings()` or equivalent cohesive object
-  methods.
+  methods, and those cohesive methods return Pydantic models rather than raw dictionaries.
 - Function and method parameters are keyword-only by default.
 - Stable request/config/domain contracts use Pydantic `BaseModel` by default.
 - Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
 - Raw dictionaries are allowed only at final SDK/HTTP serialization boundaries or tiny local literals that do
   not cross function boundaries.
+- `create()` / `from_*()` factories for request/config/domain objects do not assemble derived dictionaries,
+  JSON strings, SDK kwargs, headers, or body payloads.
+- Request/config/domain methods return Pydantic models for derived payloads; only explicit final-boundary
+  methods named `to_*_dict()` or `as_*_dict()` may return raw dictionaries.
 
 Do not output Python code that violates this gate.
 
@@ -48,6 +52,15 @@ Do not pass raw dictionaries, `Mapping`, or dict type aliases between project fu
 Do not use `dict[str, object]` for request/config/domain state.
 If a dictionary crosses more than one function boundary, convert it to a Pydantic model.
 
+Factory methods such as `create()` and `from_*()` may normalize constructor inputs, generate IDs, and choose
+defaults, but they must not assemble derived dictionaries, serialized JSON, SDK kwargs, HTTP headers, or request
+bodies. Put each derived contract in its own Pydantic `BaseModel`.
+
+Request/config/domain methods such as `headers()`, `payload()`, `body()`, `client_metadata()`, and
+`model_settings()` return Pydantic models by default. Raw dictionary returns are legal only in final boundary
+methods whose names make serialization explicit, such as `to_sdk_dict()`, `to_http_headers_dict()`, or
+`as_json_body_dict()`. Do not pass those dictionaries to other project functions.
+
 ## Mandatory Object API Rewrite
 
 When the input code contains two or more public functions named `build_*`, or several functions pass the same
@@ -60,6 +73,7 @@ Required shape:
 ```python
 request = DomainRequest.create()
 settings = request.model_settings()
+sdk_kwargs = settings.to_sdk_dict()
 ```
 
 Forbidden public shapes:
@@ -93,6 +107,8 @@ RequestBuilder
   primitives.
 - Stable request/config/domain payloads use Pydantic `BaseModel` by default; dataclasses and type aliases are not
   substitutes when the value crosses project function boundaries.
+- Stable request/config/domain classes use Pydantic `BaseModel`, not `dataclass`, when they own derived payloads,
+  validation, aliases, or serialization semantics.
 - Route handlers and stable outward service facades must use `BaseModel` response contracts wrapped by
   `BaseResponse[T]`.
 - Repository methods, ORM accessors, and persistence-layer helpers may return ORM entities or SQLAlchemy result
@@ -123,8 +139,9 @@ Full treatment: [references/class-vs-function.md](references/class-vs-function.m
 
 - When three or more related functions pass the same context/request/config object only to derive related outputs,
   prefer one cohesive domain object with named methods.
-- Prefer `request = GatewayResponsesRequest.create(); settings = request.model_settings()` over
-  `context = create_context(); settings = build_model_settings(context=context)`.
+- Prefer `request = GatewayResponsesRequest.create(); settings = request.model_settings();
+  sdk_kwargs = settings.to_sdk_dict()` over `context = create_context();
+  settings = build_model_settings(context=context)`.
 - Use domain nouns for the object (`GatewayResponsesRequest`, `WebhookDelivery`, `ReportExport`) and caller-goal
   method names (`headers()`, `payload()`, `model_settings()`, `to_request()`).
 - Do not use `build` in public function, method, class, or variable names for request/config object APIs. Prefer
@@ -243,6 +260,14 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
   aliases instead of defining a Pydantic `BaseModel`.
 - Hiding stable contract dictionaries behind type aliases such as `type Headers = dict[str, str]` or
   `type Body = dict[str, object]`.
+- `create()` or `from_*()` factories that assemble `turn_metadata: dict[...]`, `body: dict[...]`, headers,
+  JSON strings, SDK kwargs, or other derived payloads.
+- Request/config/domain methods named `headers()`, `payload()`, `body()`, `client_metadata()`, or
+  `model_settings()` returning raw dictionaries instead of Pydantic models.
+- Passing a dictionary returned by a final serializer such as `to_sdk_dict()` into another project helper for
+  filtering, enrichment, or retry orchestration.
+- Stable request/config/domain objects implemented as `@dataclass` while holding dictionaries or serialized
+  copies of dictionaries.
 - Raw `dict` / `list` / primitive returns from outward API boundaries.
 - Shorthand route decorators (`@router.get(...)`) lacking full metadata.
 - Implicit parameter sources or `user_id: int = Path(...)` default-style; use `Annotated[int, Path(...)]`.

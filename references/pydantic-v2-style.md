@@ -19,6 +19,12 @@
   cross function boundaries.
 - Do not pass `dict`, `Mapping`, `dict[str, object]`, or dict type aliases between project functions as stable
   request/config/domain contracts.
+- Stable request/config/domain objects use Pydantic `BaseModel`, not `dataclass`, when they own derived payloads,
+  aliases, validation, or serialization semantics.
+- Factory methods create models only; they do not assemble derived dictionaries, serialized JSON, SDK kwargs,
+  headers, or body payloads.
+- Derived payload methods return Pydantic models. Raw dictionaries are produced only by explicit final-boundary
+  serializers named `to_*_dict()` or `as_*_dict()`.
 
 ## Model Layering Rules
 
@@ -59,6 +65,8 @@ semantics.
 | Model layers | Reuse/configure the source model. | New layer only for changed contract, validation, permission, serialization, aggregation, or persistence semantics. | Mirror models with identical fields. |
 | Call sites | Return existing `BaseModel` values directly. | Wrap with `BaseResponse.ok(...)` at outward boundaries. | Pass-through re-wrap with `model_dump()` / `model_validate()`. |
 | Contract state | Pydantic `BaseModel` for stable request/config/domain payloads. | Raw `dict` only at final SDK/HTTP boundaries or tiny local literals. | Dict aliases, `Mapping`, or `dict[str, object]` passed between project functions. |
+| Factory behavior | Create and return Pydantic models only. | ID/time/default generation needed for construction. | Factories assembling dictionaries, JSON strings, headers, SDK kwargs, or request bodies. |
+| Serialization boundary | `to_*_dict()` / `as_*_dict()` adjacent to SDK/HTTP calls. | Tiny local literals that do not cross function boundaries. | `headers()` / `body()` / `model_settings()` returning dictionaries that project helpers pass around. |
 | Derived fields | `@computed_field` + `@property` for API-visible derived values. | Plain `@property` for internal-only computation. | Expecting plain `@property` to appear in `model_dump()` / OpenAPI. |
 | Mutation hooks | Validators or named methods. | None for business validation. | `@xxx.setter` on Pydantic business models. |
 
@@ -77,6 +85,10 @@ semantics.
   boundaries.
 - Type aliases such as `type Headers = dict[str, str]` or `type Body = dict[str, object]` used as stable
   contracts instead of Pydantic models.
+- `@dataclass` request/config/domain objects holding dictionaries or serialized JSON copies.
+- `create()` / `from_*()` factories that assemble metadata dictionaries, request bodies, headers, SDK kwargs, or
+  JSON strings.
+- Derived payload methods returning dictionaries instead of Pydantic models.
 
 ## Runnable Counterparts
 
