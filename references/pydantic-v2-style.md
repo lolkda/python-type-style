@@ -26,6 +26,10 @@
   headers, or body payloads.
 - Derived payload methods return Pydantic models. Raw dictionaries are produced only by explicit final-boundary
   serializers named `to_*_dict()` or `as_*_dict()` and consumed adjacent to the actual SDK/HTTP call.
+- Final serializer output is not assigned to variables and indexed later. Serialize the final SDK/HTTP parameter
+  model inline at the third-party call boundary.
+- Nested SDK kwargs such as `extra_body` and `extra_headers` are modeled as nested Pydantic fields; do not rebuild
+  them from pieces of an already serialized dictionary.
 
 ## Model Layering Rules
 
@@ -67,7 +71,8 @@ semantics.
 | Call sites | Return existing `BaseModel` values directly. | Wrap with `BaseResponse.ok(...)` at outward boundaries. | Pass-through re-wrap with `model_dump()` / `model_validate()`. |
 | Contract state | Pydantic `BaseModel` for stable request/config/domain payloads. | Raw `dict` only as inline SDK/HTTP literals or tiny single-function local values. | Dict aliases, `Mapping`, `TypedDict`, dataclasses, or `dict[str, object]` passed between project functions. |
 | Factory behavior | Create and return Pydantic models only. | ID/time/default generation needed for construction. | Factories assembling dictionaries, JSON strings, headers, SDK kwargs, or request bodies. |
-| Serialization boundary | `to_*_dict()` / `as_*_dict()` adjacent to SDK/HTTP calls. | Tiny local literals that are not returned, stored, passed onward, or reused across branches. | `headers()` / `body()` / `model_settings()` returning dictionaries that project helpers pass around. |
+| Serialization boundary | `to_*_dict()` / `as_*_dict()` inline at SDK/HTTP calls. | Tiny local literals that are not returned, stored, passed onward, or reused across branches. | Assigning serialized dictionaries to `body_args` / `sdk_kwargs` and indexing them later. |
+| Nested SDK kwargs | Nested Pydantic fields on one final SDK/HTTP parameter model. | Tiny inline literals consumed by the same third-party call. | `extra_body={"client_metadata": body_args["client_metadata"]}` built from serialized data. |
 | Derived fields | `@computed_field` + `@property` for API-visible derived values. | Plain `@property` for internal-only computation. | Expecting plain `@property` to appear in `model_dump()` / OpenAPI. |
 | Mutation hooks | Validators or named methods. | None for business validation. | `@xxx.setter` on Pydantic business models. |
 
@@ -92,6 +97,10 @@ semantics.
 - `create()` / `from_*()` factories that assemble metadata dictionaries, request bodies, headers, SDK kwargs, or
   JSON strings.
 - Derived payload methods returning dictionaries instead of Pydantic models.
+- `body_args = body.to_sdk_dict()` followed by `body_args["model"]`, `body_args["input"]`, or similar SDK
+  argument indexing.
+- Rebuilding nested SDK kwargs from an already serialized dict instead of serializing one final model at the call
+  boundary.
 
 ## Runnable Counterparts
 

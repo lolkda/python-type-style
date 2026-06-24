@@ -27,6 +27,10 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 - Methods such as `headers()`, `payload()`, `body()`, `client_metadata()`, and `model_settings()` return Pydantic
   models. Only explicit final-boundary serializers named `to_*_dict()` or `as_*_dict()` may return raw
   dictionaries.
+- Do not assign final serializer output to variables for later indexing. Prefer
+  `responses.create(**request.sdk_create_params().to_sdk_dict())` at the SDK/HTTP call boundary.
+- Do not rebuild nested SDK kwargs such as `extra_body` or `extra_headers` from an already serialized dictionary.
+  Put those nested values on the final SDK/HTTP parameter model.
 - Keep standalone pure transforms as module-level functions. The object API rule does not override the
   Class-vs-Function checklist.
 - Use Chinese docstrings with `Args` / `Returns` for every method, including `create`, properties, and private
@@ -40,7 +44,8 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 | Naming | Domain noun plus caller-goal methods. | `to_*` / `as_*` when converting to an external SDK shape. | Public names containing `build`, `build_`, or `Builder`; `XxxUtils`, `XxxHelpers`, or vague `Manager`. |
 | State ownership | Store stable state as Pydantic models and derive raw dictionaries only at SDK/HTTP boundaries. | Mutable state only with a documented invariant or lifecycle. | Dict aliases or `Mapping` objects passed through object methods as stable contracts. |
 | Factory behavior | Factories only normalize inputs and return the object. | ID/time/default generation needed for construction. | `create()` assembling metadata dicts, JSON strings, headers, body payloads, or SDK kwargs. |
-| Derived payload methods | Return Pydantic models. | `to_*_dict()` / `as_*_dict()` adjacent to the final SDK/HTTP call. | `body()` / `headers()` / `client_metadata()` / `model_settings()` returning raw dictionaries or serializers called far from the call site. |
+| Derived payload methods | Return Pydantic models. | `to_*_dict()` / `as_*_dict()` inline at the final SDK/HTTP call. | `body()` / `headers()` / `client_metadata()` / `model_settings()` returning raw dictionaries or serializers called far from the call site. |
+| SDK kwargs | One final Pydantic parameter model serialized once. | Inline literal only when tiny and consumed by the same third-party call. | `body_args = body.to_sdk_dict()` followed by `body_args["..."]` indexing or `extra_body={...}` rebuilt from serialized data. |
 
 ## Rewrite Pattern
 
@@ -49,7 +54,7 @@ Prefer:
 ```python
 request = GatewayResponsesRequest.create()
 settings = request.model_settings()
-sdk_kwargs = settings.to_sdk_dict()
+client.responses.create(**settings.to_sdk_dict())
 ```
 
 Avoid:
@@ -79,6 +84,9 @@ settings = build_gateway_model_settings(context=context)
 - Methods named `body()`, `headers()`, `client_metadata()`, or `model_settings()` returning dictionaries.
 - A final dictionary serializer such as `to_sdk_dict()` being called far away from the actual SDK/HTTP call site
   and then passed through project helpers.
+- Assigning serialized kwargs to `body_args`, `sdk_kwargs`, or `payload_dict` and indexing them to call the SDK.
+- Rebuilding `extra_body`, `extra_headers`, or nested SDK kwargs from an already serialized dictionary instead of
+  modeling the final SDK parameter shape.
 - A single orchestration function deriving headers, metadata, body, and SDK kwargs as local dictionaries instead
   of modeling those payloads.
 - Public methods named after implementation steps instead of caller intent.

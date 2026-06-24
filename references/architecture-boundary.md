@@ -45,6 +45,9 @@ when data leaves the service boundary.
 - Raw dictionaries, `TypedDict`, dataclasses, and named tuples are temporary boundary adapters only when consumed
   in the same function. If the value is returned, stored, or passed into project code, convert it to the relevant
   Pydantic model first.
+- Low-level SDK/HTTP helpers do not read request credentials such as `API_KEY`, bearer tokens, tenant IDs, or
+  session IDs from module globals. Standalone scripts may define top-level constants, but high-level entrypoints
+  must pass credential/config values explicitly into request/config models or helper calls.
 - Streaming and file responses may use `response_class` instead of `BaseResponse[T]`. The unified envelope rule
   applies only to JSON contract endpoints; metadata completeness and docstring requirements remain mandatory.
 
@@ -55,3 +58,4 @@ when data leaves the service boundary.
 - Service facades that vary their return types across callers (some return `dict`, some return `BaseModel`).
 - Exposing internal helper data structures (named tuples, dataclasses without semantic meaning) across module
   boundaries.
+- Hidden global credential reads inside low-level SDK/HTTP helpers.

@@ -325,7 +325,7 @@ class GatewayResponsesRequest(BaseModel):
 # Prefer:
 # request = GatewayResponsesRequest.create()
 # settings = request.model_settings()
-# sdk_kwargs = settings.to_sdk_dict()
+# client.responses.create(**settings.to_sdk_dict())
 
 
 __all__ = [

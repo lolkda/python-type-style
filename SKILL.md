@@ -45,6 +45,10 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
   JSON strings, SDK kwargs, headers, or body payloads.
 - Request/config/domain methods return Pydantic models for derived payloads; only explicit final-boundary
   methods named `to_*_dict()` or `as_*_dict()` may return raw dictionaries.
+- Do not assign `to_*_dict()` / `as_*_dict()` results to variables such as `body_args`, `sdk_kwargs`, or
+  `payload_dict` for later indexing. Serialize inline at the actual SDK/HTTP call.
+- Do not build `extra_body`, `headers`, or SDK kwargs by extracting pieces from an already serialized dict.
+  Model the final SDK/HTTP parameter shape and serialize it once at the call boundary.
 
 Do not output Python code that violates this gate.
 
@@ -74,6 +78,30 @@ methods whose names make serialization explicit, such as `to_sdk_dict()`, `to_ht
 `as_json_body_dict()`. Call those serializers adjacent to the actual SDK/HTTP invocation; do not pass those
 dictionaries to other project functions.
 
+The serializer call must be inline or immediately inside the SDK/HTTP call expression:
+
+```python
+responses.create(**request.sdk_create_params().to_sdk_dict())
+```
+
+Forbidden:
+
+```python
+body_args = body.to_sdk_dict()
+responses.create(
+    model=body_args["model"],
+    extra_body={"client_metadata": body_args["client_metadata"]},
+)
+```
+
+Do not index into serialized dictionaries to rebuild SDK arguments. If the SDK needs nested `extra_body`,
+`extra_headers`, or similar kwargs, define those nested values as Pydantic models on a final SDK parameter model
+and dump that final model once at the call boundary.
+
+Low-level SDK/HTTP helper functions do not read request credentials such as `API_KEY` from module globals.
+Independent scripts may define a top-level `API_KEY`, but the high-level entrypoint must pass it explicitly into
+the request/config object or helper call.
+
 ## Mandatory Object API Rewrite
 
 When the input code contains two or more public functions named `build_*`, or several functions pass the same
@@ -86,7 +114,7 @@ Required shape:
 ```python
 request = DomainRequest.create()
 settings = request.model_settings()
-sdk_kwargs = settings.to_sdk_dict()
+client.responses.create(**settings.to_sdk_dict())
 ```
 
 Forbidden public shapes:
@@ -282,6 +310,12 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
   `model_settings()` returning raw dictionaries instead of Pydantic models.
 - Passing a dictionary returned by a final serializer such as `to_sdk_dict()` into another project helper for
   filtering, enrichment, or retry orchestration.
+- Assigning `body_args = body.to_sdk_dict()` or `sdk_kwargs = settings.to_sdk_dict()` and then indexing that
+  dictionary to call an SDK.
+- Building `extra_body={"client_metadata": body_args["client_metadata"]}` or similar nested SDK kwargs from an
+  already serialized dictionary.
+- Low-level SDK/HTTP helpers reading `API_KEY`, tokens, or request credentials from module globals instead of
+  receiving them explicitly from the high-level entrypoint or config model.
 - Stable request/config/domain objects implemented as `@dataclass` while holding dictionaries or serialized
   copies of dictionaries.
 - Claiming a value is an internal helper or local literal while returning it, storing it, passing it to another
