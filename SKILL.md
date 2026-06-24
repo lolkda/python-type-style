@@ -39,16 +39,18 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
 - Function and method parameters are keyword-only by default.
 - Stable request/config/domain contracts use Pydantic `BaseModel` by default.
 - Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
-- Raw dictionaries are allowed only as inline literals immediately consumed by a third-party SDK/HTTP call, or as
-  tiny single-function local values that are not returned, stored, passed onward, or reused across branches.
+- Raw dictionaries are allowed only as inline literals immediately consumed by a third-party, framework, or
+  external I/O call boundary, or as tiny single-function local values that are not returned, stored, passed
+  onward, or reused across branches.
 - `create()` / `from_*()` factories for request/config/domain objects do not assemble derived dictionaries,
-  JSON strings, SDK kwargs, headers, or body payloads.
+  JSON strings, external-call kwargs, headers, or body payloads.
 - Request/config/domain methods return Pydantic models for derived payloads; only explicit final-boundary
   methods named `to_*_dict()` or `as_*_dict()` may return raw dictionaries.
-- Do not assign `to_*_dict()` / `as_*_dict()` results to variables such as `body_args`, `sdk_kwargs`, or
-  `payload_dict` for later indexing. Serialize inline at the actual SDK/HTTP call.
-- Do not build `extra_body`, `headers`, or SDK kwargs by extracting pieces from an already serialized dict.
-  Model the final SDK/HTTP parameter shape and serialize it once at the call boundary.
+- Do not assign `to_*_dict()` / `as_*_dict()` results to variables such as `body_args`, `external_kwargs`, or
+  `payload_dict` for later indexing. Serialize inline at the actual external call boundary.
+- Do not build `extra_body`, `headers`, command args, file payloads, database parameters, or framework kwargs by
+  extracting pieces from an already serialized dict. Model the final external-boundary parameter shape and
+  serialize it once at the call boundary.
 
 Do not output Python code that violates this gate.
 
@@ -56,10 +58,12 @@ Do not output Python code that violates this gate.
 
 For stable request/config/domain payloads, prefer Pydantic `BaseModel` by default.
 
-Use raw `dict` only at final serialization boundaries, such as:
+Use raw `dict` only at final serialization boundaries. This includes any third-party, framework, or external I/O
+call boundary, for example SDK, HTTP, CLI, database, message queue, file, subprocess, browser automation, or plugin
+calls. These examples are not exhaustive.
 
-- HTTP headers passed directly into a third-party SDK or HTTP client call.
-- JSON body literals passed directly into the sending call.
+- Header/metadata literals passed directly into the call that consumes them.
+- JSON/body/argument literals passed directly into the sending or execution call.
 - Tiny single-function local literals that are not returned, stored, passed onward, or reused across branches.
 
 Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
@@ -69,36 +73,38 @@ If a dictionary is assigned to a variable and then returned, stored on an object
 shared across branches, it is no longer a local literal; model it with Pydantic.
 
 Factory methods such as `create()` and `from_*()` may normalize constructor inputs, generate IDs, and choose
-defaults, but they must not assemble derived dictionaries, serialized JSON, SDK kwargs, HTTP headers, or request
-bodies. Put each derived contract in its own Pydantic `BaseModel`.
+defaults, but they must not assemble derived dictionaries, serialized JSON, external-call kwargs, headers,
+request bodies, command arguments, file payloads, or database parameters. Put each derived contract in its own
+Pydantic `BaseModel`.
 
 Request/config/domain methods such as `headers()`, `payload()`, `body()`, `client_metadata()`, and
 `model_settings()` return Pydantic models by default. Raw dictionary returns are legal only in final boundary
-methods whose names make serialization explicit, such as `to_sdk_dict()`, `to_http_headers_dict()`, or
-`as_json_body_dict()`. Call those serializers adjacent to the actual SDK/HTTP invocation; do not pass those
+methods whose names make serialization explicit, such as `as_external_call_dict()`, `to_headers_dict()`, or
+`as_json_body_dict()`. Call those serializers adjacent to the actual external invocation; do not pass those
 dictionaries to other project functions.
 
-The serializer call must be inline or immediately inside the SDK/HTTP call expression:
+The serializer call must be inline or immediately inside the external call expression:
 
 ```python
-responses.create(**request.sdk_create_params().to_sdk_dict())
+external_client.send(**request.external_call_params().as_external_call_dict())
 ```
 
 Forbidden:
 
 ```python
-body_args = body.to_sdk_dict()
+body_args = body.as_external_call_dict()
 responses.create(
     model=body_args["model"],
     extra_body={"client_metadata": body_args["client_metadata"]},
 )
 ```
 
-Do not index into serialized dictionaries to rebuild SDK arguments. If the SDK needs nested `extra_body`,
-`extra_headers`, or similar kwargs, define those nested values as Pydantic models on a final SDK parameter model
-and dump that final model once at the call boundary.
+Do not index into serialized dictionaries to rebuild external-call arguments. If the boundary needs nested
+payloads such as `extra_body`, `extra_headers`, command arguments, file metadata, database parameters, or similar
+kwargs, define those nested values as Pydantic models on one final boundary parameter model and dump that final
+model once at the call boundary.
 
-Low-level SDK/HTTP helper functions do not read request credentials such as `API_KEY` from module globals.
+Low-level external I/O or framework helper functions do not read request credentials such as `API_KEY` from module globals.
 Independent scripts may define a top-level `API_KEY`, but the high-level entrypoint must pass it explicitly into
 the request/config object or helper call.
 
@@ -114,7 +120,7 @@ Required shape:
 ```python
 request = DomainRequest.create()
 settings = request.model_settings()
-client.responses.create(**settings.to_sdk_dict())
+client.responses.create(**settings.as_external_call_dict())
 ```
 
 Forbidden public shapes:
@@ -184,7 +190,7 @@ Full treatment: [references/class-vs-function.md](references/class-vs-function.m
 - When two or more related payloads are derived from the same context/request/config object, or one function
   derives multiple stable payloads from that state, use one cohesive domain object with named methods.
 - Prefer `request = GatewayResponsesRequest.create(); settings = request.model_settings();
-  sdk_kwargs = settings.to_sdk_dict()` over `context = create_context();
+  client.responses.create(**settings.as_external_call_dict())` over `context = create_context();
   settings = build_model_settings(context=context)`.
 - Use domain nouns for the object (`GatewayResponsesRequest`, `WebhookDelivery`, `ReportExport`) and caller-goal
   method names (`headers()`, `payload()`, `model_settings()`, `to_request()`).
@@ -305,16 +311,16 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 - Hiding stable contract dictionaries behind type aliases such as `type Headers = dict[str, str]` or
   `type Body = dict[str, object]`.
 - `create()` or `from_*()` factories that assemble `turn_metadata: dict[...]`, `body: dict[...]`, headers,
-  JSON strings, SDK kwargs, or other derived payloads.
+  JSON strings, external-call kwargs, or other derived payloads.
 - Request/config/domain methods named `headers()`, `payload()`, `body()`, `client_metadata()`, or
   `model_settings()` returning raw dictionaries instead of Pydantic models.
-- Passing a dictionary returned by a final serializer such as `to_sdk_dict()` into another project helper for
+- Passing a dictionary returned by a final serializer such as `as_external_call_dict()` into another project helper for
   filtering, enrichment, or retry orchestration.
-- Assigning `body_args = body.to_sdk_dict()` or `sdk_kwargs = settings.to_sdk_dict()` and then indexing that
-  dictionary to call an SDK.
-- Building `extra_body={"client_metadata": body_args["client_metadata"]}` or similar nested SDK kwargs from an
-  already serialized dictionary.
-- Low-level SDK/HTTP helpers reading `API_KEY`, tokens, or request credentials from module globals instead of
+- Assigning `body_args = body.to_boundary_dict()` or `external_kwargs = settings.as_external_call_dict()` and then
+  indexing that dictionary to call an external dependency.
+- Building `extra_body={"client_metadata": body_args["client_metadata"]}` or similar nested boundary kwargs from
+  an already serialized dictionary.
+- Low-level external I/O or framework helpers reading `API_KEY`, tokens, or request credentials from module globals instead of
   receiving them explicitly from the high-level entrypoint or config model.
 - Stable request/config/domain objects implemented as `@dataclass` while holding dictionaries or serialized
   copies of dictionaries.

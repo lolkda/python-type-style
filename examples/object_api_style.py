@@ -34,7 +34,7 @@ class GatewayTurnMetadata(BaseModel):
 
 
 class GatewayHeaders(BaseModel):
-    """网关请求头模型,仅在 SDK 请求边界序列化为字典。"""
+    """网关请求头模型,仅在最终外部调用边界序列化为字典。"""
 
     user_agent: str = Field(
         default=DESKTOP_USER_AGENT,
@@ -95,7 +95,7 @@ class GatewayExtraBody(BaseModel):
 
 
 class PydanticAIModelSettings(BaseModel):
-    """Pydantic AI 模型设置契约,在最终 SDK 边界转为字典。"""
+    """Pydantic AI 模型设置契约,在最终外部调用边界转为字典。"""
 
     openai_reasoning_effort: ReasoningEffort = Field(description="OpenAI Responses 推理强度。")
     openai_store: bool = Field(description="是否要求服务端保存响应。")
@@ -105,15 +105,15 @@ class PydanticAIModelSettings(BaseModel):
     extra_headers: GatewayHeaders = Field(description="传给 Pydantic AI 的额外请求头。")
     extra_body: GatewayExtraBody = Field(description="传给 Pydantic AI 的额外请求体。")
 
-    def to_sdk_dict(self) -> dict[str, object]:
+    def as_external_call_dict(self) -> dict[str, object]:
         """
-        将模型设置序列化为 Pydantic AI SDK 接收的字典。
+        将模型设置序列化为最终外部调用接收的字典。
 
         Args:
             无。
 
         Returns:
-            dict[str, object]: 仅用于最终 SDK 调用边界的模型设置字典。
+            dict[str, object]: 仅用于最终外部调用边界的模型设置字典。
         """
         return cast(
             dict[str, object],
@@ -226,7 +226,7 @@ class GatewayResponsesRequest(BaseModel):
 
     def headers(self) -> GatewayHeaders:
         """
-        生成网关风格请求头模型,供最终 SDK 边界序列化。
+        生成网关风格请求头模型,供最终外部调用边界序列化。
 
         Args:
             无。
@@ -293,7 +293,7 @@ class GatewayResponsesRequest(BaseModel):
         parallel_tool_calls: bool = True,
     ) -> PydanticAIModelSettings:
         """
-        生成 Pydantic AI SDK 调用网关形态 Responses 接口所需的模型配置模型。
+        生成调用网关形态 Responses 接口所需的模型配置模型。
 
         Args:
             reasoning_effort: 推理强度,传给 OpenAIResponsesModel。
@@ -302,7 +302,7 @@ class GatewayResponsesRequest(BaseModel):
             parallel_tool_calls: 是否允许模型并行调用工具。
 
         Returns:
-            PydanticAIModelSettings: 仅在最终 SDK 调用边界序列化的模型设置。
+            PydanticAIModelSettings: 仅在最终外部调用边界序列化的模型设置。
         """
         return PydanticAIModelSettings(
             openai_reasoning_effort=reasoning_effort,
@@ -325,7 +325,7 @@ class GatewayResponsesRequest(BaseModel):
 # Prefer:
 # request = GatewayResponsesRequest.create()
 # settings = request.model_settings()
-# client.responses.create(**settings.to_sdk_dict())
+# client.responses.create(**settings.as_external_call_dict())
 
 
 __all__ = [

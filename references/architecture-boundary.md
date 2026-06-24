@@ -39,15 +39,15 @@ when data leaves the service boundary.
   parameter positionally (e.g. `async def rename_user(session: AsyncSession, *, user_id: int, ...)`). The
   keyword-only rule is exempt for the decorator-injected first parameter only; all other business parameters
   remain keyword-only.
-- Third-party integration boundaries may temporarily use permissive types (untyped SDK results, `Any`-typed
-  payloads). Conversion to strict `BaseModel` contracts must happen immediately after ingress, inside an
-  adapter at the boundary.
+- Third-party, framework, or external I/O boundaries may temporarily use permissive types (untyped results,
+  `Any`-typed payloads). Conversion to strict `BaseModel` contracts must happen immediately after ingress, inside
+  an adapter at the boundary.
 - Raw dictionaries, `TypedDict`, dataclasses, and named tuples are temporary boundary adapters only when consumed
   in the same function. If the value is returned, stored, or passed into project code, convert it to the relevant
   Pydantic model first.
-- Low-level SDK/HTTP helpers do not read request credentials such as `API_KEY`, bearer tokens, tenant IDs, or
-  session IDs from module globals. Standalone scripts may define top-level constants, but high-level entrypoints
-  must pass credential/config values explicitly into request/config models or helper calls.
+- Low-level external I/O or framework helpers do not read request credentials such as `API_KEY`, bearer tokens,
+  tenant IDs, or session IDs from module globals. Standalone scripts may define top-level constants, but
+  high-level entrypoints must pass credential/config values explicitly into request/config models or helper calls.
 - Streaming and file responses may use `response_class` instead of `BaseResponse[T]`. The unified envelope rule
   applies only to JSON contract endpoints; metadata completeness and docstring requirements remain mandatory.
 
@@ -58,4 +58,4 @@ when data leaves the service boundary.
 - Service facades that vary their return types across callers (some return `dict`, some return `BaseModel`).
 - Exposing internal helper data structures (named tuples, dataclasses without semantic meaning) across module
   boundaries.
-- Hidden global credential reads inside low-level SDK/HTTP helpers.
+- Hidden global credential reads inside low-level external I/O or framework helpers.
