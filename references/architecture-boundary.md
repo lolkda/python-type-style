@@ -42,6 +42,9 @@ when data leaves the service boundary.
 - Third-party integration boundaries may temporarily use permissive types (untyped SDK results, `Any`-typed
   payloads). Conversion to strict `BaseModel` contracts must happen immediately after ingress, inside an
   adapter at the boundary.
+- Raw dictionaries, `TypedDict`, dataclasses, and named tuples are temporary boundary adapters only when consumed
+  in the same function. If the value is returned, stored, or passed into project code, convert it to the relevant
+  Pydantic model first.
 - Streaming and file responses may use `response_class` instead of `BaseResponse[T]`. The unified envelope rule
   applies only to JSON contract endpoints; metadata completeness and docstring requirements remain mandatory.
 

@@ -6,6 +6,9 @@ If every item is false, the class is structural overhead; flatten it to function
 Declarative-shape classes (`BaseModel`, `BaseSettings`, SQLAlchemy ORM models, `dataclass`) stay classes because
 class syntax declares schema rather than behavior.
 
+This only decides class syntax vs module function. It does not allow `dataclass` to replace Pydantic
+`BaseModel` for stable request/config/domain contracts.
+
 ## Class Checklist
 
 Promote code to a class only when it has at least one of:

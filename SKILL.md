@@ -1,6 +1,6 @@
 ---
 name: python-typed-development-standards
-description: Mandatory for every Python task. Always use this skill for writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
+description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
 ---
 
 # Python Type Style
@@ -11,6 +11,16 @@ Enforce a strict, type-first engineering style on FastAPI + Pydantic v2 + SQLAlc
 Python 3.12+. Apply these rules when writing new Python and when refactoring or reviewing existing code. Each
 section gives enforceable rules; for edge cases and rationale, follow the `Full treatment:` link to
 `references/`, and see `examples/` for runnable counterparts.
+
+## Mandatory Scope
+
+Apply this skill to every Python output, not only production application code. Scripts, CLI tools, tests,
+examples, notebooks converted to Python, one-off utilities, code review comments, debugging patches,
+architecture sketches, and explanatory Python snippets all obey the same output gate.
+
+If a user asks for Python code but does not mention this skill, still apply it. If a user asks to ignore part of
+this style, keep the stricter rule unless they explicitly request a deliberate deviation for compatibility and
+the deviation is documented next to the code.
 
 ## Mandatory Python Output Gate
 
@@ -29,8 +39,8 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
 - Function and method parameters are keyword-only by default.
 - Stable request/config/domain contracts use Pydantic `BaseModel` by default.
 - Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
-- Raw dictionaries are allowed only at final SDK/HTTP serialization boundaries or tiny local literals that do
-  not cross function boundaries.
+- Raw dictionaries are allowed only as inline literals immediately consumed by a third-party SDK/HTTP call, or as
+  tiny single-function local values that are not returned, stored, passed onward, or reused across branches.
 - `create()` / `from_*()` factories for request/config/domain objects do not assemble derived dictionaries,
   JSON strings, SDK kwargs, headers, or body payloads.
 - Request/config/domain methods return Pydantic models for derived payloads; only explicit final-boundary
@@ -44,13 +54,15 @@ For stable request/config/domain payloads, prefer Pydantic `BaseModel` by defaul
 
 Use raw `dict` only at final serialization boundaries, such as:
 
-- HTTP headers passed to a third-party SDK.
-- JSON body immediately before sending.
-- Local one-off literals that do not cross function boundaries.
+- HTTP headers passed directly into a third-party SDK or HTTP client call.
+- JSON body literals passed directly into the sending call.
+- Tiny single-function local literals that are not returned, stored, passed onward, or reused across branches.
 
 Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
 Do not use `dict[str, object]` for request/config/domain state.
 If a dictionary crosses more than one function boundary, convert it to a Pydantic model.
+If a dictionary is assigned to a variable and then returned, stored on an object, passed to a project helper, or
+shared across branches, it is no longer a local literal; model it with Pydantic.
 
 Factory methods such as `create()` and `from_*()` may normalize constructor inputs, generate IDs, and choose
 defaults, but they must not assemble derived dictionaries, serialized JSON, SDK kwargs, HTTP headers, or request
@@ -59,7 +71,8 @@ bodies. Put each derived contract in its own Pydantic `BaseModel`.
 Request/config/domain methods such as `headers()`, `payload()`, `body()`, `client_metadata()`, and
 `model_settings()` return Pydantic models by default. Raw dictionary returns are legal only in final boundary
 methods whose names make serialization explicit, such as `to_sdk_dict()`, `to_http_headers_dict()`, or
-`as_json_body_dict()`. Do not pass those dictionaries to other project functions.
+`as_json_body_dict()`. Call those serializers adjacent to the actual SDK/HTTP invocation; do not pass those
+dictionaries to other project functions.
 
 ## Mandatory Object API Rewrite
 
@@ -105,16 +118,17 @@ RequestBuilder
   entry.
 - Public or external API-facing methods must return explicit contract models, not raw `dict`, `list`, or
   primitives.
-- Stable request/config/domain payloads use Pydantic `BaseModel` by default; dataclasses and type aliases are not
-  substitutes when the value crosses project function boundaries.
-- Stable request/config/domain classes use Pydantic `BaseModel`, not `dataclass`, when they own derived payloads,
-  validation, aliases, or serialization semantics.
+- Stable request/config/domain payloads use Pydantic `BaseModel` by default; dataclasses, type aliases,
+  `TypedDict`, and `Mapping` are not substitutes when the value crosses project function boundaries.
+- Request/config/domain classes use Pydantic `BaseModel` by default. Use `dataclass` only for pure internal
+  algorithm state with no aliases, validation, serialization, derived payloads, or stable boundary semantics.
 - Route handlers and stable outward service facades must use `BaseModel` response contracts wrapped by
   `BaseResponse[T]`.
 - Repository methods, ORM accessors, and persistence-layer helpers may return ORM entities or SQLAlchemy result
   objects when they do not cross an outward API boundary.
-- Internal helpers, local transforms, and module-private utilities may use lightweight structures when no
-  stable outward contract exists.
+- Internal helpers, local transforms, and module-private utilities may use lightweight structures only inside one
+  function body. Once a value is returned, stored, passed to another project function, or shared across modules,
+  it is a contract and must follow the stricter model rules.
 
 ## Class vs Function Quick Rules
 
@@ -130,6 +144,8 @@ RequestBuilder
   9. **Protocol / sequenced operations** — multiple operations must occur in a strict order and the class enforces sequence correctness as an internal state machine (`connect → authenticate → send`).
 - Declarative-shape `class` (Pydantic `BaseModel`, `pydantic_settings.BaseSettings`, SQLAlchemy ORM,
   `dataclass`) always stays class — class syntax used for schema, not for behavior.
+- This class-vs-function allowance does not make `dataclass` valid for stable request/config/domain contracts;
+  those use Pydantic `BaseModel` by default.
 - Forbidden: `class FooUtils:` / `class XxxHelpers:` whose body is only `@staticmethod` / `@classmethod`
   with no shared state — Python modules are namespaces; flatten to module-level functions.
 
@@ -137,8 +153,8 @@ Full treatment: [references/class-vs-function.md](references/class-vs-function.m
 
 ## Object API Quick Rules
 
-- When three or more related functions pass the same context/request/config object only to derive related outputs,
-  prefer one cohesive domain object with named methods.
+- When two or more related payloads are derived from the same context/request/config object, or one function
+  derives multiple stable payloads from that state, use one cohesive domain object with named methods.
 - Prefer `request = GatewayResponsesRequest.create(); settings = request.model_settings();
   sdk_kwargs = settings.to_sdk_dict()` over `context = create_context();
   settings = build_model_settings(context=context)`.
@@ -268,6 +284,9 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
   filtering, enrichment, or retry orchestration.
 - Stable request/config/domain objects implemented as `@dataclass` while holding dictionaries or serialized
   copies of dictionaries.
+- Claiming a value is an internal helper or local literal while returning it, storing it, passing it to another
+  project function, or sharing it across branches/modules.
+- Treating scripts, tests, examples, one-off utilities, or explanatory snippets as exempt from this style.
 - Raw `dict` / `list` / primitive returns from outward API boundaries.
 - Shorthand route decorators (`@router.get(...)`) lacking full metadata.
 - Implicit parameter sources or `user_id: int = Path(...)` default-style; use `Annotated[int, Path(...)]`.
