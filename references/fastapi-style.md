@@ -7,7 +7,7 @@
   and `summary`.
 - JSON endpoint `response_model` is `BaseResponse[T]` or `BaseResponse[PageData[T]]`. Do not redefine envelope
   fields.
-- Every route function has a docstring with `用途`, `Args`, and `Returns`.
+- Every route function has a Chinese docstring with `用途`, `Args`, and `Returns`.
 - Every parameter source is explicit: `Path`, `Query`, `Body`, `Form`, `File`, `Header`, `Cookie`, `Depends`,
   or `Security`.
 - Use `Annotated[...]` for parameter sources and validation metadata. Do not pass source objects as default

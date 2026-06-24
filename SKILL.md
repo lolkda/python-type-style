@@ -1,6 +1,6 @@
 ---
 name: python-typed-development-standards
-description: Use when implementing, refactoring, reviewing, or fixing FastAPI, Pydantic v2, SQLAlchemy 2, or Python backend code; enforce strict typing, response contracts, async safety, and project style rules.
+description: Mandatory for every Python task. Always use this skill for writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
 ---
 
 # Python Type Style
@@ -12,6 +12,66 @@ Python 3.12+. Apply these rules when writing new Python and when refactoring or 
 section gives enforceable rules; for edge cases and rationale, follow the `Full treatment:` link to
 `references/`, and see `examples/` for runnable counterparts.
 
+## Mandatory Python Output Gate
+
+Before producing any Python code or Python code review result, audit the output against this gate.
+If any check fails, do not present the code. Rewrite it until all checks pass.
+
+- Every class has a Chinese docstring describing business responsibility and key behavior semantics.
+- Every function, async function, method, property, overload stub, protocol stub, decorator wrapper, and private
+  helper has a Chinese docstring.
+- Every function-like docstring contains `Args` and `Returns`.
+- Public request/config object API names do not contain `build`, `build_`, or `Builder`.
+- Scattered `build_xxx(context=...)` helpers are not used when the outputs belong to one request/config/domain
+  object.
+- Request/config/domain object APIs prefer `Request.create().model_settings()` or equivalent cohesive object
+  methods.
+- Function and method parameters are keyword-only by default.
+- Stable request/config/domain contracts use Pydantic `BaseModel` by default.
+- Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
+- Raw dictionaries are allowed only at final SDK/HTTP serialization boundaries or tiny local literals that do
+  not cross function boundaries.
+
+Do not output Python code that violates this gate.
+
+## Mandatory Contract Model Rule
+
+For stable request/config/domain payloads, prefer Pydantic `BaseModel` by default.
+
+Use raw `dict` only at final serialization boundaries, such as:
+
+- HTTP headers passed to a third-party SDK.
+- JSON body immediately before sending.
+- Local one-off literals that do not cross function boundaries.
+
+Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
+Do not use `dict[str, object]` for request/config/domain state.
+If a dictionary crosses more than one function boundary, convert it to a Pydantic model.
+
+## Mandatory Object API Rewrite
+
+When the input code contains two or more public functions named `build_*`, or several functions pass the same
+`context`, `request`, `config`, `metadata`, or `settings` value, rewrite the design into one cohesive object.
+Read [references/object-api-style.md](references/object-api-style.md) and follow
+[examples/object_api_style.py](examples/object_api_style.py) before writing code.
+
+Required shape:
+
+```python
+request = DomainRequest.create()
+settings = request.model_settings()
+```
+
+Forbidden public shapes:
+
+```python
+build_context(...)
+build_headers(...)
+build_body(...)
+build_settings(...)
+RequestBuilder
+```
+
 ## Core Rules
 
 - Use `from ... import ...` style imports consistently. Do not use wildcard imports.
@@ -20,13 +80,19 @@ section gives enforceable rules; for edge cases and rationale, follow the `Full 
 - Apply the same keyword-only rule to async functions and dependency callables unless a framework signature
   forbids it.
 - Require docstrings on every function, async function, and class.
-- Every function docstring must include `Args` and `Returns` sections with business meaning, not type labels.
-- Every class docstring must describe business responsibility and key behavior semantics.
+- Every function docstring must be written in Chinese and include `Args` and `Returns` sections with business
+  meaning, not type labels.
+- This docstring rule applies to all function-like definitions, including `__init__`, `@property`,
+  `@cached_property`, `@computed_field`, `@hybrid_property`, `@overload` stubs, `Protocol` method stubs,
+  decorator inner wrappers, and private helpers.
+- Every class docstring must be written in Chinese and describe business responsibility and key behavior semantics.
 - Write explicit parameter and return types for all public methods.
 - Avoid `Any`. Use it only at hard interoperability boundaries; convert to strict models immediately after
   entry.
 - Public or external API-facing methods must return explicit contract models, not raw `dict`, `list`, or
   primitives.
+- Stable request/config/domain payloads use Pydantic `BaseModel` by default; dataclasses and type aliases are not
+  substitutes when the value crosses project function boundaries.
 - Route handlers and stable outward service facades must use `BaseModel` response contracts wrapped by
   `BaseResponse[T]`.
 - Repository methods, ORM accessors, and persistence-layer helpers may return ORM entities or SQLAlchemy result
@@ -52,6 +118,23 @@ section gives enforceable rules; for edge cases and rationale, follow the `Full 
   with no shared state — Python modules are namespaces; flatten to module-level functions.
 
 Full treatment: [references/class-vs-function.md](references/class-vs-function.md).
+
+## Object API Quick Rules
+
+- When three or more related functions pass the same context/request/config object only to derive related outputs,
+  prefer one cohesive domain object with named methods.
+- Prefer `request = GatewayResponsesRequest.create(); settings = request.model_settings()` over
+  `context = create_context(); settings = build_model_settings(context=context)`.
+- Use domain nouns for the object (`GatewayResponsesRequest`, `WebhookDelivery`, `ReportExport`) and caller-goal
+  method names (`headers()`, `payload()`, `model_settings()`, `to_request()`).
+- Do not use `build` in public function, method, class, or variable names for request/config object APIs. Prefer
+  `create`, `from_*`, `to_*`, `as_*`, or direct caller-goal method names.
+- Keep pure standalone transforms as module-level functions. Do not create a class just to wrap one trivial
+  function.
+- Avoid public `build_xxx(...)` helpers when they only expose intermediate assembly details that callers should
+  not coordinate.
+
+Full treatment: [references/object-api-style.md](references/object-api-style.md).
 
 ## Typing Quick Rules
 
@@ -87,7 +170,7 @@ Full treatment: [references/response-contract.md](references/response-contract.m
   Do not pass source objects as default values.
 - Reserve `HTTPException` for protocol-level failures. Define typed business exceptions and register global
   handlers that emit through `BaseResponse[None]`.
-- Every route function has a docstring with `用途`, `Args`, `Returns`.
+- Every route function has a Chinese docstring with `用途`, `Args`, `Returns`.
 
 Full treatment: [references/fastapi-style.md](references/fastapi-style.md).
 
@@ -150,8 +233,16 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 - `from module import *` or module-wide references that hide symbol ownership in business layers.
 - `lambda` in service logic, route handlers, or model builders.
 - Positional arguments in business functions; missing `*` separator.
-- Missing docstrings, or docstrings without `Args` / `Returns` business context.
+- Missing docstrings, non-Chinese function or class docstrings, or docstrings without `Args` / `Returns` business
+  context.
+- Scattered `build_xxx(context=...)` helpers that repeatedly pass the same context to assemble one conceptual
+  request/config object.
+- Public names containing `build`, `build_`, or `Builder` in request/config object APIs.
 - `Any` for stable contracts or outward response payloads.
+- Passing request/config/domain data through functions as `dict`, `Mapping`, `dict[str, object]`, or dict type
+  aliases instead of defining a Pydantic `BaseModel`.
+- Hiding stable contract dictionaries behind type aliases such as `type Headers = dict[str, str]` or
+  `type Body = dict[str, object]`.
 - Raw `dict` / `list` / primitive returns from outward API boundaries.
 - Shorthand route decorators (`@router.get(...)`) lacking full metadata.
 - Implicit parameter sources or `user_id: int = Path(...)` default-style; use `Annotated[int, Path(...)]`.
@@ -183,6 +274,7 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 | SQLAlchemy 2 ORM, async repository, relationship loading | [sqlalchemy2-style.md](references/sqlalchemy2-style.md) | [repository.py](examples/repository.py) |
 | Pydantic v2 fields, validators, `ClassVar`, model layering | [pydantic-v2-style.md](references/pydantic-v2-style.md) | [base_response.py](examples/base_response.py) |
 | `@property` / `@cached_property` / `@computed_field` / `@hybrid_property` usage discipline + setter ban | [property-usage.md](references/property-usage.md) | [property_usage.py](examples/property_usage.py) |
+| Object API style for replacing scattered `build_xxx(context=...)` helpers with cohesive request/config objects | [object-api-style.md](references/object-api-style.md) | [object_api_style.py](examples/object_api_style.py) |
 | Async safety, blocking I/O, sync-in-async anti-patterns | [async-concurrency.md](references/async-concurrency.md) | — |
 | Outward vs persistence boundary, exceptions and priorities, deviation rules | [architecture-boundary.md](references/architecture-boundary.md) | — |
 | Class vs Function decision checklist and namespace-grouping anti-patterns | [class-vs-function.md](references/class-vs-function.md) | — |

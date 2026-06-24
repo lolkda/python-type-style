@@ -14,6 +14,11 @@
 - `@model_validator(mode="after")` returns `Self`; `@field_validator` returns the validated value.
 - Use `@computed_field` paired with `@property` when a derived value must appear in `model_dump()` or OpenAPI.
 - Setters on Pydantic models are forbidden; use validators or named methods.
+- Stable request/config/domain payloads use Pydantic `BaseModel` by default.
+- Raw dictionaries are allowed only at final SDK/HTTP serialization boundaries or tiny local literals that do not
+  cross function boundaries.
+- Do not pass `dict`, `Mapping`, `dict[str, object]`, or dict type aliases between project functions as stable
+  request/config/domain contracts.
 
 ## Model Layering Rules
 
@@ -53,6 +58,7 @@ semantics.
 | Field docs | Chinese business description on every outward field. | Internal models not exposed in schema may stay lighter. | Missing descriptions, English placeholders, type-label descriptions. |
 | Model layers | Reuse/configure the source model. | New layer only for changed contract, validation, permission, serialization, aggregation, or persistence semantics. | Mirror models with identical fields. |
 | Call sites | Return existing `BaseModel` values directly. | Wrap with `BaseResponse.ok(...)` at outward boundaries. | Pass-through re-wrap with `model_dump()` / `model_validate()`. |
+| Contract state | Pydantic `BaseModel` for stable request/config/domain payloads. | Raw `dict` only at final SDK/HTTP boundaries or tiny local literals. | Dict aliases, `Mapping`, or `dict[str, object]` passed between project functions. |
 | Derived fields | `@computed_field` + `@property` for API-visible derived values. | Plain `@property` for internal-only computation. | Expecting plain `@property` to appear in `model_dump()` / OpenAPI. |
 | Mutation hooks | Validators or named methods. | None for business validation. | `@xxx.setter` on Pydantic business models. |
 
@@ -67,6 +73,10 @@ semantics.
 - Pass-through re-wrap at call sites.
 - Creating a new model for a difference that `ConfigDict`, `Field(...)`, or validators can express.
 - Class-level constants without `ClassVar[...]`.
+- Passing request/config/domain state as `dict`, `Mapping`, or dict type aliases across project function
+  boundaries.
+- Type aliases such as `type Headers = dict[str, str]` or `type Body = dict[str, object]` used as stable
+  contracts instead of Pydantic models.
 
 ## Runnable Counterparts
 

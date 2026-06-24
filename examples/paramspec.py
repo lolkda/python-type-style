@@ -22,7 +22,16 @@ def with_logging[**P, R](
 
     @wraps(fn)
     async def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
-        """实际包装实现,记录日志后调用原函数。"""
+        """
+        实际包装实现,记录日志后调用原函数。
+
+        Args:
+            args: 被装饰函数的原始位置参数,由 ParamSpec 保持类型。
+            kwargs: 被装饰函数的原始关键字参数,由 ParamSpec 保持类型。
+
+        Returns:
+            R: 原始异步函数返回的业务结果。
+        """
         return await fn(*args, **kwargs)
 
     return wrapped
@@ -43,7 +52,16 @@ def transactional[**P, R](
 
     @wraps(fn)
     async def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
-        """实际包装实现,构造会话后委派调用并提交事务。"""
+        """
+        实际包装实现,构造会话后委派调用并提交事务。
+
+        Args:
+            args: 对外调用方传入的原始位置参数。
+            kwargs: 对外调用方传入的原始关键字参数。
+
+        Returns:
+            R: 被事务包装的业务方法返回值。
+        """
         session = await _open_session()
         try:
             result = await fn(session, *args, **kwargs)
@@ -61,6 +79,9 @@ def transactional[**P, R](
 async def _open_session() -> AsyncSession:
     """
     占位会话工厂,真实工程应注入 async_sessionmaker 构造的会话。
+
+    Args:
+        无。
 
     Returns:
         AsyncSession: 待业务使用的异步数据库会话。

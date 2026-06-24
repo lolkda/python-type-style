@@ -95,8 +95,13 @@ class UserNotFoundError(Exception):
 
     def __init__(self, *, user_id: int) -> None:
         """
+        初始化用户不存在异常,记录未命中的用户主键。
+
         Args:
             user_id: 未找到的用户主键,供处理器构造错误消息使用。
+
+        Returns:
+            None: 构造函数无返回值,副作用为设置异常消息和 user_id。
         """
         super().__init__(f"user {user_id} not found")
         self.user_id = user_id

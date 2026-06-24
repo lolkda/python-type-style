@@ -10,13 +10,37 @@ from _shared import AsyncSession, User, UserNotFoundError
 @overload
 async def get_user(
     *, session: AsyncSession, user_id: int, required: Literal[True],
-) -> User: ...
+) -> User:
+    """
+    required=True 的重载签名,声明未命中时抛出异常且返回值非空。
+
+    Args:
+        session: 当前请求范围内的异步数据库会话。
+        user_id: 目标用户唯一标识。
+        required: 固定为 True,表示调用方要求用户必须存在。
+
+    Returns:
+        User: 命中的用户实体;未命中由实现函数抛出 UserNotFoundError。
+    """
+    ...
 
 
 @overload
 async def get_user(
     *, session: AsyncSession, user_id: int, required: Literal[False] = False,
-) -> User | None: ...
+) -> User | None:
+    """
+    required=False 的重载签名,声明未命中时返回空值。
+
+    Args:
+        session: 当前请求范围内的异步数据库会话。
+        user_id: 目标用户唯一标识。
+        required: 固定为 False 或省略,表示允许用户不存在。
+
+    Returns:
+        User | None: 命中的用户实体;未命中时返回空值。
+    """
+    ...
 
 
 async def get_user(

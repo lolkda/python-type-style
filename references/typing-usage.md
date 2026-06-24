@@ -22,10 +22,9 @@ Python typing.
 | `NewType` | Use for service-layer nominal IDs when primitive ID mixups are a real risk. | Pydantic fields use `Annotated[int, ...]` instead. | Declaring Pydantic model fields directly as `NewType` IDs. |
 | `from __future__ import annotations` | Do not enable project-wide. Pydantic v2 and FastAPI rely on runtime type introspection. | Use string annotations or `TYPE_CHECKING` surgically for circular imports. | Blanket future-annotations policy in FastAPI / Pydantic modules. |
 
-## Required Exceptions To Global Rules
+## Required Details
 
-- `@overload` stubs use `...` bodies and do not require `Args` / `Returns` docstrings. The implementation keeps
-  the business docstring.
+- `@overload` stubs use `...` bodies but still require Chinese docstrings with `Args` / `Returns`.
 - `Protocol` method stubs are consumer-facing contracts and still require business docstrings.
 - `Concatenate[X, P]` decorators may inject the first positional parameter into the decorated business function
   (`async def rename_user(session: AsyncSession, *, user_id: int, ...)`). The keyword-only rule is waived only

@@ -11,8 +11,13 @@ class Repository[EntityT: Base]:
 
     def __init__(self, *, entity_type: type[EntityT]) -> None:
         """
+        初始化通用仓储,绑定后续查询使用的 ORM 实体类型。
+
         Args:
             entity_type: 仓储管理的 ORM 实体类,用于构造查询语句。
+
+        Returns:
+            None: 构造函数无返回值,副作用为保存实体类型。
         """
         self._entity_type = entity_type
 

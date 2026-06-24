@@ -51,8 +51,13 @@ class InMemoryUserReader:
 
     def __init__(self, *, users: dict[int, User]) -> None:
         """
+        初始化内存态读取器,保存测试预置用户集合。
+
         Args:
             users: 以主键为键的预置用户字典,供测试断言使用。
+
+        Returns:
+            None: 构造函数无返回值,副作用为保存内存用户字典。
         """
         self._users = users
 

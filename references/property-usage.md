@@ -25,6 +25,8 @@ Pydantic v2 / SQLAlchemy 2 code.
 ## Required Details
 
 - Every `@property` return type is explicit.
+- Every `@property`, `@cached_property`, `@computed_field`, and `@hybrid_property` function still has a Chinese
+  docstring with `Args` and `Returns`; use `Args: 无。` when the property has no business parameters.
 - `@computed_field` must be paired with `@property`.
 - `@hybrid_property` must provide a SQL expression when it is used in SQL clauses.
 - A property alias for an ORM column is allowed only when it has no side effects and performs no database access.

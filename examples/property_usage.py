@@ -25,9 +25,14 @@ class UserSummary:
 
     def __init__(self, *, user_id: int, nickname: str) -> None:
         """
+        初始化用户摘要,保存展示所需的不可变字段。
+
         Args:
             user_id: 用户唯一标识。
             nickname: 用户展示昵称,允许含前后空白。
+
+        Returns:
+            None: 构造函数无返回值,副作用为保存用户摘要字段。
         """
         self._user_id = user_id
         self._nickname = nickname
@@ -36,6 +41,9 @@ class UserSummary:
     def display_name(self) -> str:
         """
         返回拼接展示名,纯字符串拼接无副作用。
+
+        Args:
+            无。
 
         Returns:
             str: 形如 "alice#42" 的展示字符串。
@@ -48,6 +56,9 @@ class UserSummary:
         归一化昵称(去前后空白 + 转小写),计算一次后冻结在 __dict__ 中。
 
         合法前提:实例的 _nickname 在缓存生命周期内不变;UserSummary 被设计为不可变,故满足。
+
+        Args:
+            无。
 
         Returns:
             str: 归一化后的昵称字符串。
@@ -72,6 +83,9 @@ class UserDetailDataWithLabel(BaseModel):
         """
         根据 status 字段返回中文标签;同时进入 model_dump() 和响应 schema。
 
+        Args:
+            无。
+
         Returns:
             str: 状态对应的中文短语。
         """
@@ -90,6 +104,9 @@ class Article(Base):
         """
         Python 侧:返回标题字符长度,等价于 len(self.title)。
 
+        Args:
+            无。
+
         Returns:
             int: 标题字符长度。
         """
@@ -100,6 +117,9 @@ class Article(Base):
     def title_length(cls) -> ColumnElement[int]:
         """
         SQL 侧:返回 char_length(title) 表达式,可用于 select / where / order_by。
+
+        Args:
+            cls: Article ORM 实体类,用于访问映射列表达式。
 
         Returns:
             ColumnElement[int]: SQLAlchemy 整数表达式,代表标题字符长度。
