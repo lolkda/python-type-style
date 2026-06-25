@@ -26,6 +26,9 @@
   serialization, derived payloads, or stable boundary semantics.
 - Factory methods create models only; they do not assemble derived dictionaries, serialized JSON,
   external-call kwargs, headers, body payloads, command arguments, file payloads, or database parameters.
+- Stable request/config/domain models store semantic Pydantic values, not serialized artifacts such as
+  `metadata_json`, `metadata_user_id`, `headers_dict`, `body_dict`, `payload_json`, `request_body`, or
+  `external_kwargs`.
 - Derived payload methods return Pydantic models. Raw dictionaries are produced only by explicit final-boundary
   serializers named `to_*_dict()` or `as_*_dict()` and consumed adjacent to the actual external call.
 - Final serializer output is not assigned to variables and indexed later. Serialize the final external-boundary
@@ -33,6 +36,9 @@
 - Nested boundary kwargs such as `extra_body`, `extra_headers`, command args, file metadata, or database
   parameters are modeled as nested Pydantic fields; do not rebuild them from pieces of an already serialized
   dictionary.
+- Final-boundary serializers dump one complete Pydantic boundary model once. Use aliases, `exclude_none`,
+  `@field_serializer`, `@model_serializer`, and nested models instead of manual dictionary assembly through
+  repeated child `model_dump()` calls.
 
 ## Model Layering Rules
 
@@ -65,6 +71,17 @@ result directly. Do not reconstruct a structurally equivalent model via `AModel(
 The only allowed wrap at an outward boundary is `BaseResponse.ok(...)`, because it adds `code` / `message`
 semantics.
 
+## Serialized State Rule
+
+Serialized values are boundary artifacts, not state. If an external boundary requires a JSON string, header
+string, command argument string, or other rendered payload, keep the semantic source as a Pydantic model and
+render it only inside the final boundary serializer.
+
+Do not keep both a semantic model and a serialized copy on the same request/config/domain object. Do not replace a
+semantic model with a string field merely because the downstream API eventually wants a string.
+
+Use `@field_serializer` or `@model_serializer` when one field must render differently at the boundary.
+
 ## Default / Exception / Forbidden
 
 | Area | Default | Allowed exception | Forbidden |
@@ -74,8 +91,10 @@ semantics.
 | Call sites | Return existing `BaseModel` values directly. | Wrap with `BaseResponse.ok(...)` at outward boundaries. | Pass-through re-wrap with `model_dump()` / `model_validate()`. |
 | Contract state | Pydantic `BaseModel` for stable request/config/domain payloads. | Raw `dict` only as inline external-boundary literals or tiny single-function local values. | Dict aliases, `Mapping`, `TypedDict`, dataclasses, or `dict[str, object]` passed between project functions. |
 | Factory behavior | Create and return Pydantic models only. | ID/time/default generation needed for construction. | Factories assembling dictionaries, JSON strings, headers, body payloads, command args, database parameters, or external-call kwargs. |
+| Serialized state | Store semantic Pydantic models. | Boundary-only field serializers for APIs that require rendered strings. | Stable fields named like `*_json`, `*_dict`, `*_payload`, `metadata_user_id`, `request_body`, or `external_kwargs`. |
 | Serialization boundary | `to_*_dict()` / `as_*_dict()` inline at final external calls. | Tiny local literals that are not returned, stored, passed onward, or reused across branches. | Assigning serialized dictionaries to `body_args` / `external_kwargs` and indexing them later. |
 | Nested boundary kwargs | Nested Pydantic fields on one final external-boundary parameter model. | Tiny inline literals consumed by the same third-party, framework, or external I/O call. | `extra_body={"client_metadata": body_args["client_metadata"]}` built from serialized data. |
+| Final dump | One complete boundary model dumped once. | `@field_serializer` / `@model_serializer` for special field rendering. | Child `to_*_dict()` calls or repeated child `model_dump()` calls stitched into a parent dict. |
 | Derived fields | `@computed_field` + `@property` for API-visible derived values. | Plain `@property` for internal-only computation. | Expecting plain `@property` to appear in `model_dump()` / OpenAPI. |
 | Mutation hooks | Validators or named methods. | None for business validation. | `@xxx.setter` on Pydantic business models. |
 
@@ -99,11 +118,15 @@ semantics.
   it across branches.
 - `create()` / `from_*()` factories that assemble metadata dictionaries, request bodies, headers,
   external-call kwargs, command arguments, file payloads, database parameters, or JSON strings.
+- Stable request/config/domain fields storing serialized derivatives such as `metadata_json`,
+  `metadata_user_id`, `headers_dict`, `body_dict`, `payload_json`, `request_body`, or `external_kwargs`.
 - Derived payload methods returning dictionaries instead of Pydantic models.
 - `body_args = body.as_external_call_dict()` followed by `body_args["model"]`, `body_args["input"]`, or similar
   boundary argument indexing.
 - Rebuilding nested boundary kwargs from an already serialized dict instead of serializing one final model at the
   call boundary.
+- Final serializers that call child `to_*_dict()` methods or repeated child `model_dump()` calls to stitch
+  together the parent payload.
 
 ## Runnable Counterparts
 

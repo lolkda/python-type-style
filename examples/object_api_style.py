@@ -5,7 +5,7 @@ from time import time
 from typing import Final, Literal, Self, cast
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 DESKTOP_USER_AGENT: Final[str] = (
@@ -52,9 +52,9 @@ class GatewayHeaders(BaseModel):
         description="请求网关启用的实验能力。",
     )
     window_id: str = Field(serialization_alias="x-codex-window-id", description="客户端窗口标识。")
-    turn_metadata_json: str = Field(
+    turn_metadata: GatewayTurnMetadata = Field(
         serialization_alias="x-codex-turn-metadata",
-        description="压缩 JSON 形式的 turn 元数据。",
+        description="最终外部边界需要渲染为压缩 JSON 的 turn 元数据。",
     )
     client_request_id: str = Field(serialization_alias="x-client-request-id", description="客户端请求标识。")
     session_id: str = Field(serialization_alias="session-id", description="当前会话标识。")
@@ -65,15 +65,32 @@ class GatewayHeaders(BaseModel):
         description="请求来源产品名称。",
     )
 
+    @field_serializer("turn_metadata")
+    def _serialize_turn_metadata(self, turn_metadata: GatewayTurnMetadata) -> str:
+        """
+        在最终外部调用边界把 turn 元数据渲染为压缩 JSON 字符串。
+
+        Args:
+            turn_metadata: 语义化的请求轮次元数据模型。
+
+        Returns:
+            str: 可放入 x-codex-turn-metadata 请求头的压缩 JSON 字符串。
+        """
+        return json.dumps(
+            turn_metadata.model_dump(mode="json", by_alias=True),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
 
 class GatewayClientMetadata(BaseModel):
     """网关请求体客户端元数据模型,表达 Responses 网关需要的身份字段。"""
 
     turn_id: str = Field(description="当前请求轮次标识。")
     window_id: str = Field(serialization_alias="x-codex-window-id", description="客户端窗口标识。")
-    turn_metadata_json: str = Field(
+    turn_metadata: GatewayTurnMetadata = Field(
         serialization_alias="x-codex-turn-metadata",
-        description="压缩 JSON 形式的 turn 元数据。",
+        description="最终外部边界需要渲染为压缩 JSON 的 turn 元数据。",
     )
     session_id: str = Field(description="当前会话标识。")
     thread_id: str = Field(description="当前线程标识。")
@@ -81,6 +98,23 @@ class GatewayClientMetadata(BaseModel):
         serialization_alias="x-codex-installation-id",
         description="客户端安装标识。",
     )
+
+    @field_serializer("turn_metadata")
+    def _serialize_turn_metadata(self, turn_metadata: GatewayTurnMetadata) -> str:
+        """
+        在最终外部调用边界把 turn 元数据渲染为压缩 JSON 字符串。
+
+        Args:
+            turn_metadata: 语义化的请求轮次元数据模型。
+
+        Returns:
+            str: 可放入 x-codex-turn-metadata 请求体字段的压缩 JSON 字符串。
+        """
+        return json.dumps(
+            turn_metadata.model_dump(mode="json", by_alias=True),
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
 
 
 class GatewayExtraBody(BaseModel):
@@ -208,22 +242,6 @@ class GatewayResponsesRequest(BaseModel):
             turn_started_at_unix_ms=self.started_at_unix_ms,
         )
 
-    def turn_metadata_json(self) -> str:
-        """
-        生成压缩 JSON 形式的网关 turn 元数据。
-
-        Args:
-            无。
-
-        Returns:
-            str: 可放入 x-codex-turn-metadata 请求头的 JSON 字符串。
-        """
-        return json.dumps(
-            self.turn_metadata().model_dump(mode="json", by_alias=True),
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
-
     def headers(self) -> GatewayHeaders:
         """
         生成网关风格请求头模型,供最终外部调用边界序列化。
@@ -236,7 +254,7 @@ class GatewayResponsesRequest(BaseModel):
         """
         return GatewayHeaders(
             window_id=self.window_id,
-            turn_metadata_json=self.turn_metadata_json(),
+            turn_metadata=self.turn_metadata(),
             client_request_id=self.session_id,
             session_id=self.session_id,
             thread_id=self.thread_id,
@@ -255,7 +273,7 @@ class GatewayResponsesRequest(BaseModel):
         return GatewayClientMetadata(
             turn_id=self.turn_id,
             window_id=self.window_id,
-            turn_metadata_json=self.turn_metadata_json(),
+            turn_metadata=self.turn_metadata(),
             session_id=self.session_id,
             thread_id=self.thread_id,
             installation_id=self.installation_id,

@@ -24,6 +24,9 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 - Keep `create()` / `from_*()` factories narrow: normalize input, generate IDs, apply defaults, and return the
   object. Do not assemble derived dictionaries, serialized JSON, external-call kwargs, headers, body payloads,
   command arguments, file payloads, or database parameters inside factories.
+- Store semantic request/config/domain state, not serialized artifacts. Fields named like `*_json`, `*_dict`,
+  `*_payload`, `*_body`, `*_headers`, `metadata_user_id`, or `external_kwargs` are forbidden as stable object
+  state unless they are literal source values from the external domain, not values produced by your code.
 - Methods such as `headers()`, `payload()`, `body()`, `client_metadata()`, and `model_settings()` return Pydantic
   models. Only explicit final-boundary serializers named `to_*_dict()` or `as_*_dict()` may return raw
   dictionaries.
@@ -32,6 +35,9 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 - Do not rebuild nested boundary kwargs such as `extra_body`, `extra_headers`, command args, file metadata, or
   database parameters from an already serialized dictionary. Put those nested values on the final external-boundary
   parameter model.
+- Final-boundary serializers dump one complete Pydantic boundary model once. Use aliases, `exclude_none`,
+  `@field_serializer`, and nested Pydantic models instead of calling child serializers or repeated child
+  `model_dump()` calls and stitching the result together.
 - Keep standalone pure transforms as module-level functions. The object API rule does not override the
   Class-vs-Function checklist.
 - Use Chinese docstrings with `Args` / `Returns` for every method, including `create`, properties, and private
@@ -45,8 +51,10 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 | Naming | Domain noun plus caller-goal methods. | `to_*` / `as_*` when converting to an external-boundary shape. | Public names containing `build`, `build_`, or `Builder`; `XxxUtils`, `XxxHelpers`, or vague `Manager`. |
 | State ownership | Store stable state as Pydantic models and derive raw dictionaries only at final external boundaries. | Mutable state only with a documented invariant or lifecycle. | Dict aliases or `Mapping` objects passed through object methods as stable contracts. |
 | Factory behavior | Factories only normalize inputs and return the object. | ID/time/default generation needed for construction. | `create()` assembling metadata dicts, JSON strings, headers, body payloads, command args, database parameters, or external-call kwargs. |
+| Serialized state | Store semantic Pydantic models. | `@field_serializer` at the final boundary for required rendered strings. | Stable fields like `metadata_json`, `metadata_user_id`, `headers_dict`, `payload_json`, `request_body`, or `external_kwargs`. |
 | Derived payload methods | Return Pydantic models. | `to_*_dict()` / `as_*_dict()` inline at the final external call. | `body()` / `headers()` / `client_metadata()` / `model_settings()` returning raw dictionaries or serializers called far from the call site. |
 | External-call kwargs | One final Pydantic parameter model serialized once. | Inline literal only when tiny and consumed by the same external call. | `body_args = body.as_external_call_dict()` followed by `body_args["..."]` indexing or nested kwargs rebuilt from serialized data. |
+| Final dump | One complete boundary model dumped once. | Field/model serializers for special external rendering. | Child `to_*_dict()` calls or repeated child `model_dump()` calls stitched into a parent dict. |
 
 ## Rewrite Pattern
 
@@ -82,6 +90,8 @@ settings = build_gateway_model_settings(context=context)
 - Returning a raw dictionary from one project method only for another project method to enrich or forward it.
 - `create()` assembling `turn_metadata: dict[...]`, `turn_metadata_json`, headers, body payloads, command args,
   database parameters, or external-call kwargs before returning the object.
+- Request/config/domain objects storing serialized derivatives such as `metadata_json`, `metadata_user_id`,
+  `headers_dict`, `body_dict`, `payload_json`, `request_body`, or `external_kwargs`.
 - Methods named `body()`, `headers()`, `client_metadata()`, or `model_settings()` returning dictionaries.
 - A final dictionary serializer such as `as_external_call_dict()` being called far away from the actual external
   call site
@@ -90,6 +100,8 @@ settings = build_gateway_model_settings(context=context)
   external dependency.
 - Rebuilding `extra_body`, `extra_headers`, command args, file metadata, database parameters, or nested boundary
   kwargs from an already serialized dictionary instead of modeling the final external-boundary parameter shape.
+- Final serializers calling child `to_*_dict()` methods or repeated child `model_dump()` calls instead of dumping
+  one complete Pydantic boundary model once.
 - A single orchestration function deriving headers, metadata, body, and external-call kwargs as local dictionaries
   instead of modeling those payloads.
 - Public methods named after implementation steps instead of caller intent.

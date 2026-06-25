@@ -1,6 +1,6 @@
 ---
 name: python-typed-development-standards
-description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
+description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, no serialized contract state, one final boundary model dump, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
 ---
 
 # Python Type Style
@@ -44,6 +44,9 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
   onward, or reused across branches.
 - `create()` / `from_*()` factories for request/config/domain objects do not assemble derived dictionaries,
   JSON strings, external-call kwargs, headers, or body payloads.
+- Do not store serialized contract artifacts such as `*_json`, `*_dict`, `*_payload`, `*_body`, or `*_headers`
+  as stable request/config/domain state. Store semantic Pydantic models and serialize only at the final external
+  boundary.
 - Request/config/domain methods return Pydantic models for derived payloads; only explicit final-boundary
   methods named `to_*_dict()` or `as_*_dict()` may return raw dictionaries.
 - Do not assign `to_*_dict()` / `as_*_dict()` results to variables such as `body_args`, `external_kwargs`, or
@@ -51,6 +54,8 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
 - Do not build `extra_body`, `headers`, command args, file payloads, database parameters, or framework kwargs by
   extracting pieces from an already serialized dict. Model the final external-boundary parameter shape and
   serialize it once at the call boundary.
+- Final-boundary serializers dump one complete Pydantic boundary model once. Do not compose final dictionaries by
+  calling nested `to_*_dict()` / `as_*_dict()` serializers or by manually stitching repeated `model_dump()` pieces.
 
 Do not output Python code that violates this gate.
 
@@ -76,6 +81,34 @@ Factory methods such as `create()` and `from_*()` may normalize constructor inpu
 defaults, but they must not assemble derived dictionaries, serialized JSON, external-call kwargs, headers,
 request bodies, command arguments, file payloads, or database parameters. Put each derived contract in its own
 Pydantic `BaseModel`.
+
+### No Serialized State Rule
+
+Serialized values are boundary artifacts, not domain/config state.
+
+Do not store JSON strings, serialized dictionaries, header dictionaries, request-body dictionaries, command
+argument dictionaries, or already-rendered payload strings on request/config/domain models. This also forbids
+fields whose names encode serialization state, such as `metadata_json`, `metadata_user_id`, `headers_dict`,
+`body_dict`, `payload_json`, `request_body`, or `external_kwargs`.
+
+Use semantic Pydantic models for state. If an external boundary requires a stringified JSON field, model the
+semantic value first and stringify it only inside the final boundary serializer.
+
+Forbidden:
+
+```python
+class ChatConfig(BaseModel):
+    metadata_user_id: str
+```
+
+Preferred:
+
+```python
+class MetadataUser(BaseModel):
+    device_id: str = Field(description="设备标识。")
+    account_uuid: str = Field(description="账号标识。")
+    session_id: str = Field(description="会话标识。")
+```
 
 Request/config/domain methods such as `headers()`, `payload()`, `body()`, `client_metadata()`, and
 `model_settings()` return Pydantic models by default. Raw dictionary returns are legal only in final boundary
@@ -103,6 +136,29 @@ Do not index into serialized dictionaries to rebuild external-call arguments. If
 payloads such as `extra_body`, `extra_headers`, command arguments, file metadata, database parameters, or similar
 kwargs, define those nested values as Pydantic models on one final boundary parameter model and dump that final
 model once at the call boundary.
+
+### One Final Dump Rule
+
+A final-boundary serializer serializes one complete Pydantic boundary model once.
+
+Prefer aliases, `exclude_none`, `@field_serializer`, `@model_serializer`, and nested Pydantic models over manual
+dictionary assembly. Do not implement final serializers by calling nested serializer methods and stitching the
+result together. Do not call `model_dump()` on several child models to manually build the parent payload.
+
+Forbidden:
+
+```python
+return {
+    "system": [block.to_api_dict() for block in self.system],
+    "metadata": self.metadata.model_dump(),
+}
+```
+
+Preferred:
+
+```python
+return self.model_dump(mode="json", by_alias=True, exclude_none=True)
+```
 
 Low-level external I/O or framework helper functions do not read request credentials such as `API_KEY` from module globals.
 Independent scripts may define a top-level `API_KEY`, but the high-level entrypoint must pass it explicitly into
@@ -312,10 +368,14 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
   `type Body = dict[str, object]`.
 - `create()` or `from_*()` factories that assemble `turn_metadata: dict[...]`, `body: dict[...]`, headers,
   JSON strings, external-call kwargs, or other derived payloads.
+- Stable request/config/domain models storing serialized derivatives such as `metadata_json`, `metadata_user_id`,
+  `headers_dict`, `body_dict`, `payload_json`, `request_body`, or `external_kwargs`.
 - Request/config/domain methods named `headers()`, `payload()`, `body()`, `client_metadata()`, or
   `model_settings()` returning raw dictionaries instead of Pydantic models.
 - Passing a dictionary returned by a final serializer such as `as_external_call_dict()` into another project helper for
   filtering, enrichment, or retry orchestration.
+- Final serializers manually stitching nested dictionaries through child `to_*_dict()` calls or repeated
+  `model_dump()` calls instead of dumping one complete Pydantic boundary model once.
 - Assigning `body_args = body.to_boundary_dict()` or `external_kwargs = settings.as_external_call_dict()` and then
   indexing that dictionary to call an external dependency.
 - Building `extra_body={"client_metadata": body_args["client_metadata"]}` or similar nested boundary kwargs from
