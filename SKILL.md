@@ -1,6 +1,6 @@
 ---
 name: python-typed-development-standards
-description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, no serialized contract state, one final boundary model dump, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, avoid unnecessary extraction of linear control flow into thin helpers, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
+description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, no serialized contract state, one final boundary model dump, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, mandatory function extraction audit with one-use thin helpers inlined, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
 ---
 
 # Python Type Style
@@ -36,10 +36,15 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
   object.
 - Straight-line script workflows stay straight-line. Do not split setup, one external call, printing/result
   handling, and wait/retry into thin one-use helper functions.
+- Before finalizing rewritten Python, audit every top-level function and method introduced or preserved. Each
+  must be an entrypoint, framework/protocol hook, reused function, non-trivial parser/validator/transformer,
+  retry/error boundary, external-boundary adapter, or cohesive Pydantic object method with a real caller goal.
 - Extract a function only when it has reuse, meaningful branching, non-trivial parsing/transformation, boundary
   adaptation, project invariants, test value, or materially improves readability.
-- Do not create thin helpers whose body only delegates to one obvious operation, returns one simple expression, or
-  forwards arguments without adding validation, branching, boundary adaptation, invariants, or test value.
+- Inline every one-use helper whose body only delegates to one obvious operation, returns one simple expression,
+  or forwards arguments without adding validation, branching, boundary adaptation, invariants, or test value.
+- The docstring requirement applies only after a function passes the extraction audit. Do not keep or create a
+  helper merely because it has a clear name or can be given a good docstring.
 - Request/config/domain object APIs prefer `Request.create().model_settings()` or equivalent cohesive object
   methods, and those cohesive methods return Pydantic models rather than raw dictionaries.
 - Function and method parameters are keyword-only by default.
@@ -230,16 +235,23 @@ RequestBuilder
 
 - For scripts, examples, one-off utilities, and small CLI tools, prefer one readable top-level flow.
 - Keep setup -> call -> print/result -> wait/retry in the same function when the logic is linear and used once.
+- When rewriting existing Python, do not preserve the original function layout by default. Actively merge existing
+  one-use thin helpers into the caller before applying docstring, typing, or Pydantic cleanup.
 - Do not extract helper functions merely to name every step. A helper must satisfy at least one:
   1. Used by two or more call sites.
   2. Contains meaningful branching, validation, parsing, retry, or error handling.
   3. Adapts a protocol, serialization, framework, or external I/O boundary.
   4. Encodes a project invariant that would be easy to misuse inline.
   5. Makes a large block materially easier to test or review.
-- Inline trivial wrappers around simple ID/random generation, waiting/sleeping, logging/printing, direct external
-  calls, simple copies, simple attribute access, and simple constructor calls.
-- The docstring requirement is not a reason to extract a helper. If a helper has no real abstraction value,
-  inline it and document the containing function instead.
+- Inline trivial wrappers around simple ID/token/timestamp/random/default generation, waiting/sleeping,
+  logging/printing/result display, one SDK/client/framework call with no retry or error policy, simple copies,
+  simple attribute/property access, simple constructor calls, simple `model_dump()` / `json.dumps()` /
+  string-formatting / alias conversion, and helpers that only return one obvious expression.
+- For script-like files, the final code must not contain scattered top-level helpers for a linear setup -> call
+  -> output -> wait/retry flow. If more than `main()` plus schema/model classes remain, each remaining top-level
+  function must satisfy the extraction audit.
+- The docstring requirement is not a reason to extract or preserve a helper. If a helper has no real abstraction
+  value, inline it and document the containing function instead.
 
 Full treatment: [references/class-vs-function.md](references/class-vs-function.md).
 

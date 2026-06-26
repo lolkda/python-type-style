@@ -17,6 +17,18 @@ readable top-level function when the logic is used once.
 Keep setup -> call -> print/result -> wait/retry together when there is no meaningful branch or reusable
 abstraction. Do not extract a helper merely to name every step.
 
+When rewriting existing Python, do not preserve the old function layout by default. First audit every top-level
+function and method that is introduced or preserved. A function must be one of:
+
+1. An entrypoint such as `main`.
+2. A framework callback or protocol-required hook.
+3. A function used by two or more call sites.
+4. A non-trivial parser, validator, transformer, retry/error boundary, or external-boundary adapter.
+5. A cohesive Pydantic request/config/domain model method that exposes a real caller goal.
+
+Inline any one-use helper that does not pass this audit before adding docstrings, type annotations, or Pydantic
+models. The docstring requirement applies only after a function has earned its place.
+
 Extract a function only when it has at least one of:
 
 1. It is used by two or more call sites.
@@ -27,9 +39,13 @@ Extract a function only when it has at least one of:
 
 A thin helper is a helper whose body only delegates to one obvious operation, returns one simple expression, or
 forwards arguments without adding validation, branching, boundary adaptation, invariants, or test value. Inline
-thin helpers for simple ID/random generation, waiting/sleeping, logging/printing, direct external calls, simple
-constructors, simple copies, or simple attribute access. The docstring requirement is not a reason to extract a
-helper.
+thin helpers for simple ID/token/timestamp/random/default generation, waiting/sleeping, logging/printing/result
+display, a single SDK/client/framework call with no retry or error policy, simple constructors, simple copies,
+simple attribute/property access, simple `model_dump()` / `json.dumps()` / string formatting / alias conversion,
+or one obvious return expression.
+
+The docstring requirement is not a reason to extract or preserve a helper. If the helper fails the audit, inline
+it and document the containing function instead.
 
 ## Class Checklist
 
@@ -58,6 +74,9 @@ Any **yes** means class is allowed. All **no** means module-level function.
 - Thin one-use functions that wrap a single obvious standard-library, framework, or SDK call without adding
   validation, boundary adaptation, retry, invariants, or readability.
 - A script whose main flow is harder to follow because each linear step is moved into a separate helper.
+- Preserving one-use thin helpers during a rewrite only because the input file already had them.
+- Giving a thin helper a Chinese Args/Returns docstring and treating that docstring as evidence that the helper
+  should remain.
 
 ## Default Rewrite
 

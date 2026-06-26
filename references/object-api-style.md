@@ -43,6 +43,9 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 - Keep one-use orchestration code inline when the flow is linear. The object API rule models stable
   request/config/domain contracts; it does not require extracting every setup, call, output handling, wait, or
   retry step into a helper method.
+- Do not let object API cleanup create a new thin-helper layer. After replacing scattered `build_xxx` helpers,
+  audit every remaining top-level function and object method; inline one-use helpers that only generate simple
+  defaults, forward calls, serialize one expression, or name a linear step.
 - Use Chinese docstrings with `Args` / `Returns` for every method, including `create`, properties, and private
   helpers.
 
@@ -58,7 +61,7 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 | Derived payload methods | Return Pydantic models. | `to_*_dict()` / `as_*_dict()` inline at the final external call. | `body()` / `headers()` / `client_metadata()` / `model_settings()` returning raw dictionaries or serializers called far from the call site. |
 | External-call kwargs | One final Pydantic parameter model serialized once. | Inline literal only when tiny and consumed by the same external call. | `body_args = body.as_external_call_dict()` followed by `body_args["..."]` indexing or nested kwargs rebuilt from serialized data. |
 | Final dump | One complete boundary model dumped once. | Field/model serializers for special external rendering. | Child `to_*_dict()` calls or repeated child `model_dump()` calls stitched into a parent dict. |
-| Linear orchestration | Keep one-use setup/call/output/wait flow inline. | Extract only for reuse, branching, boundary adaptation, invariants, or test value. | Splitting a straight-line script into many one-line helpers or methods. |
+| Linear orchestration | Keep one-use setup/call/output/wait flow inline. | Extract only for reuse, branching, boundary adaptation, invariants, retry/error policy, protocol hooks, or test value. | Splitting a straight-line script into many one-line helpers or methods, or preserving thin helpers only because they already existed. |
 
 ## Rewrite Pattern
 
@@ -111,6 +114,10 @@ settings = build_gateway_model_settings(context=context)
 - A linear script flow split into thin helpers for simple ID/random generation, direct external calls, output
   handling, waiting, simple construction, or simple attribute access when each helper is used once and adds no
   validation, branching, boundary adaptation, invariant, or test value.
+- Object API rewrites that remove `build_xxx` names but keep the same fragmentation under `create_xxx`,
+  `new_xxx`, `send_once`, `default_xxx`, `to_xxx`, or other one-use thin helper names.
+- Treating a method's Chinese Args/Returns docstring as a reason to keep a method that only wraps a simple
+  expression or a direct call.
 - Public methods named after implementation steps instead of caller intent.
 
 ## Runnable Counterpart
