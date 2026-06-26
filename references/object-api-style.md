@@ -41,8 +41,8 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 - Keep standalone pure transforms as module-level functions. The object API rule does not override the
   Class-vs-Function checklist.
 - Keep one-use orchestration code inline when the flow is linear. The object API rule models stable
-  request/config/domain contracts; it does not require extracting every setup, call, print, sleep, or retry step
-  into a helper method.
+  request/config/domain contracts; it does not require extracting every setup, call, output handling, wait, or
+  retry step into a helper method.
 - Use Chinese docstrings with `Args` / `Returns` for every method, including `create`, properties, and private
   helpers.
 
@@ -108,8 +108,9 @@ settings = build_gateway_model_settings(context=context)
   one complete Pydantic boundary model once.
 - A single orchestration function deriving headers, metadata, body, and external-call kwargs as local dictionaries
   instead of modeling those payloads.
-- A linear script flow split into helpers such as `new_session_id()`, `send_once()`, `print_result()`, or
-  `wait_next()` when each helper is used once and only wraps an obvious call.
+- A linear script flow split into thin helpers for simple ID/random generation, direct external calls, output
+  handling, waiting, simple construction, or simple attribute access when each helper is used once and adds no
+  validation, branching, boundary adaptation, invariant, or test value.
 - Public methods named after implementation steps instead of caller intent.
 
 ## Runnable Counterpart

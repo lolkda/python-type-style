@@ -25,9 +25,11 @@ Extract a function only when it has at least one of:
 4. It encodes a project invariant that would be easy to misuse inline.
 5. It makes a large block materially easier to test or review.
 
-Inline trivial wrappers around obvious calls such as `uuid4()`, `token_hex()`, `asyncio.sleep()`, `agent.run()`,
-`print()`, `model_copy()`, simple constructors, or simple attribute access. The docstring requirement is not a
-reason to extract a helper.
+A thin helper is a helper whose body only delegates to one obvious operation, returns one simple expression, or
+forwards arguments without adding validation, branching, boundary adaptation, invariants, or test value. Inline
+thin helpers for simple ID/random generation, waiting/sleeping, logging/printing, direct external calls, simple
+constructors, simple copies, or simple attribute access. The docstring requirement is not a reason to extract a
+helper.
 
 ## Class Checklist
 

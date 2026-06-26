@@ -1,6 +1,6 @@
 ---
 name: python-typed-development-standards
-description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, no serialized contract state, one final boundary model dump, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, no over-extracted thin helpers in straight-line scripts, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
+description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, no serialized contract state, one final boundary model dump, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, avoid unnecessary extraction of linear control flow into thin helpers, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
 ---
 
 # Python Type Style
@@ -38,8 +38,8 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
   handling, and wait/retry into thin one-use helper functions.
 - Extract a function only when it has reuse, meaningful branching, non-trivial parsing/transformation, boundary
   adaptation, project invariants, test value, or materially improves readability.
-- Do not create one-line or two-line wrappers around obvious standard-library, framework, or SDK calls unless
-  they encode a real project invariant.
+- Do not create thin helpers whose body only delegates to one obvious operation, returns one simple expression, or
+  forwards arguments without adding validation, branching, boundary adaptation, invariants, or test value.
 - Request/config/domain object APIs prefer `Request.create().model_settings()` or equivalent cohesive object
   methods, and those cohesive methods return Pydantic models rather than raw dictionaries.
 - Function and method parameters are keyword-only by default.
@@ -236,8 +236,8 @@ RequestBuilder
   3. Adapts a protocol, serialization, framework, or external I/O boundary.
   4. Encodes a project invariant that would be easy to misuse inline.
   5. Makes a large block materially easier to test or review.
-- Inline trivial wrappers around `uuid4()`, `token_hex()`, `asyncio.sleep()`, `agent.run()`, `print()`,
-  `model_copy()`, simple attribute access, and simple constructor calls.
+- Inline trivial wrappers around simple ID/random generation, waiting/sleeping, logging/printing, direct external
+  calls, simple copies, simple attribute access, and simple constructor calls.
 - The docstring requirement is not a reason to extract a helper. If a helper has no real abstraction value,
   inline it and document the containing function instead.
 
@@ -383,8 +383,8 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 - Positional arguments in business functions; missing `*` separator.
 - Missing docstrings, non-Chinese function or class docstrings, or docstrings without `Args` / `Returns` business
   context.
-- Thin one-use helper functions that only wrap `uuid4()`, `token_hex()`, `sleep()`, `asyncio.sleep()`,
-  `agent.run()`, `print()`, `model_copy()`, simple constructors, or simple attribute access.
+- Thin one-use helper functions for simple ID/random generation, waiting/sleeping, logging/printing, direct
+  external calls, simple constructors, simple copies, or simple attribute access.
 - A script whose main flow is harder to read because setup, one external call, printing/result handling, and
   waiting/retry are scattered across many helper functions.
 - Extracting functions only to satisfy docstring style; inline helpers that have no real abstraction value.
