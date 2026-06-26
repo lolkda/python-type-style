@@ -9,6 +9,26 @@ class syntax declares schema rather than behavior.
 This only decides class syntax vs module function. It does not allow `dataclass` to replace Pydantic
 `BaseModel` for stable request/config/domain contracts.
 
+## Linear Flow Rule
+
+For scripts, examples, one-off utilities, and small CLI tools, keep a simple straight-line workflow in one
+readable top-level function when the logic is used once.
+
+Keep setup -> call -> print/result -> wait/retry together when there is no meaningful branch or reusable
+abstraction. Do not extract a helper merely to name every step.
+
+Extract a function only when it has at least one of:
+
+1. It is used by two or more call sites.
+2. It contains meaningful branching, validation, parsing, retry, or error handling.
+3. It adapts a protocol, serialization, framework, or external I/O boundary.
+4. It encodes a project invariant that would be easy to misuse inline.
+5. It makes a large block materially easier to test or review.
+
+Inline trivial wrappers around obvious calls such as `uuid4()`, `token_hex()`, `asyncio.sleep()`, `agent.run()`,
+`print()`, `model_copy()`, simple constructors, or simple attribute access. The docstring requirement is not a
+reason to extract a helper.
+
 ## Class Checklist
 
 Promote code to a class only when it has at least one of:
@@ -33,6 +53,9 @@ Any **yes** means class is allowed. All **no** means module-level function.
 - A class created only to mirror Java / C# style.
 - FastAPI route handlers, dependency callables, Pydantic validators, or decorator factories wrapped in a class
   without one of the checklist justifications.
+- Thin one-use functions that wrap a single obvious standard-library, framework, or SDK call without adding
+  validation, boundary adaptation, retry, invariants, or readability.
+- A script whose main flow is harder to follow because each linear step is moved into a separate helper.
 
 ## Default Rewrite
 

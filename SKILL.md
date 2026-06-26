@@ -1,6 +1,6 @@
 ---
 name: python-typed-development-standards
-description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, no serialized contract state, one final boundary model dump, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
+description: Mandatory for every Python task, including application code, scripts, CLI tools, tests, examples, one-off utilities, reviews, debugging, explanations, and design. Always use this skill when writing, refactoring, reviewing, debugging, fixing, explaining, or designing Python code. Enforce Python 3.12+ strict typing, keyword-only signatures, Chinese Args/Returns docstrings, Pydantic BaseModel-first request/config/domain contracts, no serialized contract state, one final boundary model dump, object API style over build_xxx helpers, no public build/build_/Builder names in request/config APIs, no over-extracted thin helpers in straight-line scripts, FastAPI/Pydantic v2/SQLAlchemy 2 rules, and async safety.
 ---
 
 # Python Type Style
@@ -34,6 +34,12 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
 - Public request/config object API names do not contain `build`, `build_`, or `Builder`.
 - Scattered `build_xxx(context=...)` helpers are not used when the outputs belong to one request/config/domain
   object.
+- Straight-line script workflows stay straight-line. Do not split setup, one external call, printing/result
+  handling, and wait/retry into thin one-use helper functions.
+- Extract a function only when it has reuse, meaningful branching, non-trivial parsing/transformation, boundary
+  adaptation, project invariants, test value, or materially improves readability.
+- Do not create one-line or two-line wrappers around obvious standard-library, framework, or SDK calls unless
+  they encode a real project invariant.
 - Request/config/domain object APIs prefer `Request.create().model_settings()` or equivalent cohesive object
   methods, and those cohesive methods return Pydantic models rather than raw dictionaries.
 - Function and method parameters are keyword-only by default.
@@ -220,6 +226,23 @@ RequestBuilder
   function body. Once a value is returned, stored, passed to another project function, or shared across modules,
   it is a contract and must follow the stricter model rules.
 
+## Linear Flow Quick Rules
+
+- For scripts, examples, one-off utilities, and small CLI tools, prefer one readable top-level flow.
+- Keep setup -> call -> print/result -> wait/retry in the same function when the logic is linear and used once.
+- Do not extract helper functions merely to name every step. A helper must satisfy at least one:
+  1. Used by two or more call sites.
+  2. Contains meaningful branching, validation, parsing, retry, or error handling.
+  3. Adapts a protocol, serialization, framework, or external I/O boundary.
+  4. Encodes a project invariant that would be easy to misuse inline.
+  5. Makes a large block materially easier to test or review.
+- Inline trivial wrappers around `uuid4()`, `token_hex()`, `asyncio.sleep()`, `agent.run()`, `print()`,
+  `model_copy()`, simple attribute access, and simple constructor calls.
+- The docstring requirement is not a reason to extract a helper. If a helper has no real abstraction value,
+  inline it and document the containing function instead.
+
+Full treatment: [references/class-vs-function.md](references/class-vs-function.md).
+
 ## Class vs Function Quick Rules
 
 - Default to module-level functions. Promote to a class only when at least one of:
@@ -254,6 +277,8 @@ Full treatment: [references/class-vs-function.md](references/class-vs-function.m
   `create`, `from_*`, `to_*`, `as_*`, or direct caller-goal method names.
 - Keep pure standalone transforms as module-level functions. Do not create a class just to wrap one trivial
   function.
+- Keep one-use orchestration code inline when the flow is linear. Object APIs model stable contracts; they do not
+  require extracting every step into a method or helper.
 - Avoid public `build_xxx(...)` helpers when they only expose intermediate assembly details that callers should
   not coordinate.
 
@@ -358,6 +383,11 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 - Positional arguments in business functions; missing `*` separator.
 - Missing docstrings, non-Chinese function or class docstrings, or docstrings without `Args` / `Returns` business
   context.
+- Thin one-use helper functions that only wrap `uuid4()`, `token_hex()`, `sleep()`, `asyncio.sleep()`,
+  `agent.run()`, `print()`, `model_copy()`, simple constructors, or simple attribute access.
+- A script whose main flow is harder to read because setup, one external call, printing/result handling, and
+  waiting/retry are scattered across many helper functions.
+- Extracting functions only to satisfy docstring style; inline helpers that have no real abstraction value.
 - Scattered `build_xxx(context=...)` helpers that repeatedly pass the same context to assemble one conceptual
   request/config object.
 - Public names containing `build`, `build_`, or `Builder` in request/config object APIs.

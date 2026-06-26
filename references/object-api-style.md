@@ -40,6 +40,9 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
   `model_dump()` calls and stitching the result together.
 - Keep standalone pure transforms as module-level functions. The object API rule does not override the
   Class-vs-Function checklist.
+- Keep one-use orchestration code inline when the flow is linear. The object API rule models stable
+  request/config/domain contracts; it does not require extracting every setup, call, print, sleep, or retry step
+  into a helper method.
 - Use Chinese docstrings with `Args` / `Returns` for every method, including `create`, properties, and private
   helpers.
 
@@ -55,6 +58,7 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 | Derived payload methods | Return Pydantic models. | `to_*_dict()` / `as_*_dict()` inline at the final external call. | `body()` / `headers()` / `client_metadata()` / `model_settings()` returning raw dictionaries or serializers called far from the call site. |
 | External-call kwargs | One final Pydantic parameter model serialized once. | Inline literal only when tiny and consumed by the same external call. | `body_args = body.as_external_call_dict()` followed by `body_args["..."]` indexing or nested kwargs rebuilt from serialized data. |
 | Final dump | One complete boundary model dumped once. | Field/model serializers for special external rendering. | Child `to_*_dict()` calls or repeated child `model_dump()` calls stitched into a parent dict. |
+| Linear orchestration | Keep one-use setup/call/output/wait flow inline. | Extract only for reuse, branching, boundary adaptation, invariants, or test value. | Splitting a straight-line script into many one-line helpers or methods. |
 
 ## Rewrite Pattern
 
@@ -104,6 +108,8 @@ settings = build_gateway_model_settings(context=context)
   one complete Pydantic boundary model once.
 - A single orchestration function deriving headers, metadata, body, and external-call kwargs as local dictionaries
   instead of modeling those payloads.
+- A linear script flow split into helpers such as `new_session_id()`, `send_once()`, `print_result()`, or
+  `wait_next()` when each helper is used once and only wraps an obvious call.
 - Public methods named after implementation steps instead of caller intent.
 
 ## Runnable Counterpart
