@@ -46,6 +46,12 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 - Do not let object API cleanup create a new thin-helper layer. After replacing scattered `build_xxx` helpers,
   audit every remaining top-level function and object method; inline one-use helpers that only generate simple
   defaults, forward calls, serialize one expression, or name a linear step.
+- Thin-helper prohibition has priority over reuse count. A helper or method is not justified merely because it is
+  called twice if it still only generates a simple ID/default, forwards to another helper, performs one direct
+  external call, serializes one expression, or names a linear step.
+- Do not create call-chain object APIs where each method only forwards to the next method. A cohesive object
+  should expose caller goals and own stable contracts, not recreate `build_xxx` fragmentation under
+  `create_xxx`, `new_xxx`, `send_once`, `default_xxx`, or `to_xxx` names.
 - Use Chinese docstrings with `Args` / `Returns` for every method, including `create`, properties, and private
   helpers.
 
@@ -61,7 +67,7 @@ to assemble related outputs. Prefer one cohesive domain object whose public meth
 | Derived payload methods | Return Pydantic models. | `to_*_dict()` / `as_*_dict()` inline at the final external call. | `body()` / `headers()` / `client_metadata()` / `model_settings()` returning raw dictionaries or serializers called far from the call site. |
 | External-call kwargs | One final Pydantic parameter model serialized once. | Inline literal only when tiny and consumed by the same external call. | `body_args = body.as_external_call_dict()` followed by `body_args["..."]` indexing or nested kwargs rebuilt from serialized data. |
 | Final dump | One complete boundary model dumped once. | Field/model serializers for special external rendering. | Child `to_*_dict()` calls or repeated child `model_dump()` calls stitched into a parent dict. |
-| Linear orchestration | Keep one-use setup/call/output/wait flow inline. | Extract only for reuse, branching, boundary adaptation, invariants, retry/error policy, protocol hooks, or test value. | Splitting a straight-line script into many one-line helpers or methods, or preserving thin helpers only because they already existed. |
+| Linear orchestration | Keep one-use setup/call/output/wait flow inline. | Extract only after the thin-helper check passes and the helper owns reuse with real behavior, branching, boundary adaptation, invariants, retry/error policy, protocol hooks, or test value. | Splitting a straight-line script into many one-line helpers or methods, preserving thin helpers only because they already existed, or treating call count as enough reason to keep a thin helper. |
 
 ## Rewrite Pattern
 
@@ -114,6 +120,10 @@ settings = build_gateway_model_settings(context=context)
 - A linear script flow split into thin helpers for simple ID/random generation, direct external calls, output
   handling, waiting, simple construction, or simple attribute access when each helper is used once and adds no
   validation, branching, boundary adaptation, invariant, or test value.
+- A helper kept only because it is called twice while still wrapping simple ID/token/default generation,
+  serialization, construction, attribute access, or one direct external call.
+- Layered call chains such as `send_batch_once -> send_config_prompt_once -> send_prompt_once` where each layer
+  only forwards arguments or names a linear step.
 - Object API rewrites that remove `build_xxx` names but keep the same fragmentation under `create_xxx`,
   `new_xxx`, `send_once`, `default_xxx`, `to_xxx`, or other one-use thin helper names.
 - Treating a method's Chinese Args/Returns docstring as a reason to keep a method that only wraps a simple

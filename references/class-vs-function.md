@@ -22,16 +22,23 @@ function and method that is introduced or preserved. A function must be one of:
 
 1. An entrypoint such as `main`.
 2. A framework callback or protocol-required hook.
-3. A function used by two or more call sites.
+3. A function used by two or more call sites and containing real behavior beyond forwarding or a simple
+   expression.
 4. A non-trivial parser, validator, transformer, retry/error boundary, or external-boundary adapter.
 5. A cohesive Pydantic request/config/domain model method that exposes a real caller goal.
 
 Inline any one-use helper that does not pass this audit before adding docstrings, type annotations, or Pydantic
 models. The docstring requirement applies only after a function has earned its place.
 
-Extract a function only when it has at least one of:
+The thin-helper check has priority over call count. Do not keep a helper only because it is called two or more
+times. Simple UUID/token/timestamp/random/default wrappers, sleeping/printing/logging wrappers, one direct
+external-call wrappers, simple constructors, simple attribute forwarding, one-expression serializers, and helpers
+that only call another project helper with the same arguments stay inline unless they add policy, validation,
+retry/error handling, protocol adaptation, non-trivial transformation, or an invariant.
 
-1. It is used by two or more call sites.
+Extract a function only when it first passes the thin-helper check and then has at least one of:
+
+1. It is used by two or more call sites and contains real behavior beyond forwarding or a simple expression.
 2. It contains meaningful branching, validation, parsing, retry, or error handling.
 3. It adapts a protocol, serialization, framework, or external I/O boundary.
 4. It encodes a project invariant that would be easy to misuse inline.
@@ -46,6 +53,12 @@ or one obvious return expression.
 
 The docstring requirement is not a reason to extract or preserve a helper. If the helper fails the audit, inline
 it and document the containing function instead.
+
+Do not replace one linear script with layered one-use orchestration helpers. A chain such as
+`main -> send_batch_once -> send_config_prompt_once -> send_prompt_once` is forbidden when each layer only
+forwards arguments, creates one object, calls one dependency, or names a step. Keep the orchestration in `main()`
+or the nearest high-level entrypoint unless a layer owns retry/error policy, protocol adaptation, validation,
+state transition, or a reusable tested transformation.
 
 ## Class Checklist
 
@@ -73,7 +86,12 @@ Any **yes** means class is allowed. All **no** means module-level function.
   without one of the checklist justifications.
 - Thin one-use functions that wrap a single obvious standard-library, framework, or SDK call without adding
   validation, boundary adaptation, retry, invariants, or readability.
+- Thin helper functions kept only because they are called twice, even though the body is still simple
+  ID/token/random/default generation, sleeping, printing, direct external calls, simple constructors,
+  serialization, attribute forwarding, or one obvious return expression.
 - A script whose main flow is harder to follow because each linear step is moved into a separate helper.
+- Layered one-use orchestration helpers where each function only forwards to the next function in a straight-line
+  flow.
 - Preserving one-use thin helpers during a rewrite only because the input file already had them.
 - Giving a thin helper a Chinese Args/Returns docstring and treating that docstring as evidence that the helper
   should remain.

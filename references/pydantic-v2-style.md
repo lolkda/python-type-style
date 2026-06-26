@@ -43,6 +43,8 @@
 ## Model Layering Rules
 
 Do not introduce mirror-model chains that duplicate the same fields across layers with no change in semantics.
+Do not create a `BaseModel` only to wrap a local list, batch, or temporary grouping when the wrapper adds no
+validation, serialization, permission, invariant, lifecycle, or outward contract semantics.
 
 Before adding a new `BaseModel` layer, configure the source model when the difference is expressible through:
 
@@ -88,6 +90,7 @@ Use `@field_serializer` or `@model_serializer` when one field must render differ
 |---|---|---|---|
 | Field docs | Chinese business description on every outward field. | Internal models not exposed in schema may stay lighter. | Missing descriptions, English placeholders, type-label descriptions. |
 | Model layers | Reuse/configure the source model. | New layer only for changed contract, validation, permission, serialization, aggregation, or persistence semantics. | Mirror models with identical fields. |
+| Local grouping | Keep local lists, batches, and temporary groups as local values. | Add a model only when it owns validation, serialization, permissions, invariants, lifecycle, or outward contract semantics. | `BaseModel` wrappers around local lists or batches that only rename the collection. |
 | Call sites | Return existing `BaseModel` values directly. | Wrap with `BaseResponse.ok(...)` at outward boundaries. | Pass-through re-wrap with `model_dump()` / `model_validate()`. |
 | Contract state | Pydantic `BaseModel` for stable request/config/domain payloads. | Raw `dict` only as inline external-boundary literals or tiny single-function local values. | Dict aliases, `Mapping`, `TypedDict`, dataclasses, or `dict[str, object]` passed between project functions. |
 | Factory behavior | Create and return Pydantic models only. | ID/time/default generation needed for construction. | Factories assembling dictionaries, JSON strings, headers, body payloads, command args, database parameters, or external-call kwargs. |
@@ -105,6 +108,8 @@ Use `@field_serializer` or `@model_serializer` when one field must render differ
 - `code` / `message` / `data` fields on business data models.
 - Optional fields without explicit defaults.
 - Mirror-model chains such as `UserOrmSchema` -> `UserResponse` with identical fields.
+- `BaseModel` wrappers around local lists, batches, or temporary groupings that add no validation,
+  serialization, permission, invariant, lifecycle, or outward contract semantics.
 - Chained `model_validate()` / `model_dump()` between structurally equivalent models.
 - Pass-through re-wrap at call sites.
 - Creating a new model for a difference that `ConfigDict`, `Field(...)`, or validators can express.

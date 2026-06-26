@@ -39,10 +39,19 @@ If any check fails, do not present the code. Rewrite it until all checks pass.
 - Before finalizing rewritten Python, audit every top-level function and method introduced or preserved. Each
   must be an entrypoint, framework/protocol hook, reused function, non-trivial parser/validator/transformer,
   retry/error boundary, external-boundary adapter, or cohesive Pydantic object method with a real caller goal.
+- Thin-helper prohibition has priority over reuse count. A helper is not justified merely because it is called
+  two or more times when it only wraps simple ID/token/timestamp/random/default generation, sleeping, printing,
+  logging, one direct external call, simple construction, simple attribute forwarding, serialization, or one
+  obvious return expression.
+- Reuse justifies extraction only when the helper contains policy, validation, error handling, retry behavior,
+  protocol adaptation, non-trivial transformation, or a project invariant.
 - Extract a function only when it has reuse, meaningful branching, non-trivial parsing/transformation, boundary
   adaptation, project invariants, test value, or materially improves readability.
 - Inline every one-use helper whose body only delegates to one obvious operation, returns one simple expression,
   or forwards arguments without adding validation, branching, boundary adaptation, invariants, or test value.
+- Do not create thin call chains where `main()` calls a helper that calls another helper that only forwards to a
+  direct call. Inline linear call chains into the high-level flow unless a layer owns validation, retry/error
+  policy, protocol adaptation, state transition, or independently testable transformation.
 - The docstring requirement applies only after a function passes the extraction audit. Do not keep or create a
   helper merely because it has a clear name or can be given a good docstring.
 - Request/config/domain object APIs prefer `Request.create().model_settings()` or equivalent cohesive object
@@ -237,16 +246,24 @@ RequestBuilder
 - Keep setup -> call -> print/result -> wait/retry in the same function when the logic is linear and used once.
 - When rewriting existing Python, do not preserve the original function layout by default. Actively merge existing
   one-use thin helpers into the caller before applying docstring, typing, or Pydantic cleanup.
-- Do not extract helper functions merely to name every step. A helper must satisfy at least one:
-  1. Used by two or more call sites.
+- Do not extract helper functions merely to name every step. A helper must first pass the thin-helper check, then
+  satisfy at least one:
+  1. Used by two or more call sites and contains real behavior beyond forwarding or a simple expression.
   2. Contains meaningful branching, validation, parsing, retry, or error handling.
   3. Adapts a protocol, serialization, framework, or external I/O boundary.
   4. Encodes a project invariant that would be easy to misuse inline.
   5. Makes a large block materially easier to test or review.
+- Do not keep a helper only because it is called two or more times. Simple UUID/token/timestamp/random/default
+  wrappers, direct external-call wrappers, one-expression serializers, and forwarding helpers stay inline unless
+  they add policy, validation, retry/error handling, protocol adaptation, non-trivial transformation, or an
+  invariant.
 - Inline trivial wrappers around simple ID/token/timestamp/random/default generation, waiting/sleeping,
   logging/printing/result display, one SDK/client/framework call with no retry or error policy, simple copies,
   simple attribute/property access, simple constructor calls, simple `model_dump()` / `json.dumps()` /
   string-formatting / alias conversion, and helpers that only return one obvious expression.
+- Do not replace one linear script with layered helpers such as `send_batch_once -> send_config_prompt_once ->
+  send_prompt_once` when each layer only forwards arguments, creates one object, calls one dependency, or names a
+  step. Keep the orchestration in `main()` or the nearest high-level entrypoint.
 - For script-like files, the final code must not contain scattered top-level helpers for a linear setup -> call
   -> output -> wait/retry flow. If more than `main()` plus schema/model classes remain, each remaining top-level
   function must satisfy the extraction audit.
@@ -353,6 +370,8 @@ Full treatment: [references/sqlalchemy2-style.md](references/sqlalchemy2-style.m
 - Non-field class attributes use `ClassVar[...]` to opt out of Pydantic field collection.
 - No mirror-model chains: do not add a `BaseModel` layer that does not change contract, validation,
   serialization, permission, aggregation, or persistence semantics.
+- Do not create a `BaseModel` only to wrap a local list, batch, or temporary grouping when the wrapper adds no
+  validation, serialization, permission, invariant, lifecycle, or outward contract semantics.
 - No pass-through re-wrap at call sites: if a function's return shape and semantics equal its callee's
   `BaseModel` return value, return that value directly. Do not reconstruct via `AModel(**b.model_dump())`
   or `AModel.model_validate(b)`. The only allowed wrap is `BaseResponse.ok(...)` at an outward boundary,
@@ -397,9 +416,16 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
   context.
 - Thin one-use helper functions for simple ID/random generation, waiting/sleeping, logging/printing, direct
   external calls, simple constructors, simple copies, or simple attribute access.
+- Treating "called twice" as enough reason to keep a helper whose body is still only UUID/token/random/default
+  generation, sleeping, printing, direct external calls, simple constructors, serialization, attribute
+  forwarding, or one obvious return expression.
+- Layered one-use orchestration helpers such as `send_batch_once -> send_config_prompt_once -> send_prompt_once`
+  where each layer only forwards arguments, creates one object, calls one dependency, or names a linear step.
 - A script whose main flow is harder to read because setup, one external call, printing/result handling, and
   waiting/retry are scattered across many helper functions.
 - Extracting functions only to satisfy docstring style; inline helpers that have no real abstraction value.
+- Creating a Pydantic model only to wrap a local list, batch, or temporary grouping when the wrapper adds no
+  validation, serialization, permission, invariant, lifecycle, or outward contract semantics.
 - Scattered `build_xxx(context=...)` helpers that repeatedly pass the same context to assemble one conceptual
   request/config object.
 - Public names containing `build`, `build_`, or `Builder` in request/config object APIs.
