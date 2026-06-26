@@ -1,5 +1,9 @@
 # Pydantic v2 Style
 
+This reference is the deep source of truth for Pydantic contract shape, serialized state, final-boundary dumps,
+and model layering. Decide whether a model should exist at all via [class-vs-function.md](class-vs-function.md)
+first, then apply these rules to the surviving Pydantic contracts.
+
 ## Rules
 
 - All outward-facing `BaseModel` fields include `Field(description="中文业务说明")`.

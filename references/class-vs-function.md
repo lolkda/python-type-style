@@ -9,50 +9,60 @@ class syntax declares schema rather than behavior.
 This only decides class syntax vs module function. It does not allow `dataclass` to replace Pydantic
 `BaseModel` for stable request/config/domain contracts.
 
-## Linear Flow Rule
+## Existence Before Quality
 
-For scripts, examples, one-off utilities, and small CLI tools, keep a simple straight-line workflow in one
-readable top-level function when the logic is used once.
+Existence is the first gate. Decide whether a function or model should exist before you give it a docstring, a
+type, or a Pydantic field. A fully documented, fully typed, keyword-only definition that should not exist is
+still a violation; decoration never offsets an existence failure.
 
-Keep setup -> call -> print/result -> wait/retry together when there is no meaningful branch or reusable
-abstraction. Do not extract a helper merely to name every step.
+Write the flow inline first. Start every script, handler, or workflow as one straight-line body — setup, the one
+external call, result handling, wait/retry — and do not pre-split it into named steps. Promote a span out of
+that body only by one of two independent warrants.
 
-When rewriting existing Python, do not preserve the old function layout by default. First audit every top-level
-function and method that is introduced or preserved. A function must be one of:
+**Single-use — the inlining counterfactual.** Paste the span back into its sole caller and read the result.
 
-1. An entrypoint such as `main`.
-2. A framework callback or protocol-required hook.
-3. A function used by two or more call sites and containing real behavior beyond forwarding or a simple
-   expression.
-4. A non-trivial parser, validator, transformer, retry/error boundary, or external-boundary adapter.
-5. A cohesive Pydantic request/config/domain model method that exposes a real caller goal.
+- If the caller reads the same or *easier*, the span was only "what happens next" — a call, a wait, a log, a
+  construct, a serialize, a forward. Keep it inline.
+- Promote it only when inlining makes the caller *harder* to follow, i.e. the span owns a real decision, a
+  validation, an invariant, a retry/error boundary, or a protocol/serialization transform.
 
-Inline any one-use helper that does not pass this audit before adding docstrings, type annotations, or Pydantic
-models. The docstring requirement applies only after a function has earned its place.
+This test is symmetric, and the symmetry is the point. It rejects the thin helper — extracting a span that
+inlines neutrally or more cleanly — and it equally rejects the god function — refusing to extract a span whose
+inlined form genuinely obscures the caller. A long `main()` is not automatically correct: a span inside it that
+owns a real decision, validation, or transform has already earned its own function. "Keep it inline" means keep
+*trivial continuations* inline; it never means bury real behavior in a wall of code.
 
-The thin-helper check has priority over call count. Do not keep a helper only because it is called two or more
-times. Simple UUID/token/timestamp/random/default wrappers, sleeping/printing/logging wrappers, one direct
-external-call wrappers, simple constructors, simple attribute forwarding, one-expression serializers, and helpers
-that only call another project helper with the same arguments stay inline unless they add policy, validation,
-retry/error handling, protocol adaptation, non-trivial transformation, or an invariant.
+**Reuse — real shared behavior.** A span used at two or more call sites earns a function only when its body
+carries policy, validation, error/retry handling, protocol adaptation, a non-trivial transform, or a project
+invariant. Call count alone never earns it. A body that still only generates an ID/token/timestamp/default,
+sleeps, logs, makes one external call, constructs, forwards, or serializes stays inline even when reused; lift a
+shared value to a constant rather than mint a thin helper to produce it.
 
-Extract a function only when it first passes the thin-helper check and then has at least one of:
+**External-boundary adapters.** An adapter is a warrant only when it *transforms* (maps a domain model to or
+from the external shape) or *absorbs* (handles the boundary's errors, retries, or policy). A function that only
+forwards one SDK/client call, renames its arguments, or wraps a single `run_sync` / `send` / `create` is not an
+adapter — inline it.
 
-1. It is used by two or more call sites and contains real behavior beyond forwarding or a simple expression.
-2. It contains meaningful branching, validation, parsing, retry, or error handling.
-3. It adapts a protocol, serialization, framework, or external I/O boundary.
-4. It encodes a project invariant that would be easy to misuse inline.
-5. It makes a large block materially easier to test or review.
+**Models — the unwrap test.** Models earn existence the same way, by what they *constrain or guarantee* —
+validation, an invariant, an outward contract, a serialization shape — not by what they *hold*. Drop the layer
+and use the inner type directly; if no constraint or guarantee is lost, the layer must not exist. A model that
+only wraps a local list/batch/grouping, mirrors another model's fields, or re-wraps a value already shaped by
+its callee (`AModel(**b.model_dump())`) fails this test and is deleted.
 
-A thin helper is a helper whose body only delegates to one obvious operation, returns one simple expression, or
-forwards arguments without adding validation, branching, boundary adaptation, invariants, or test value. Inline
-thin helpers for simple ID/token/timestamp/random/default generation, waiting/sleeping, logging/printing/result
-display, a single SDK/client/framework call with no retry or error policy, simple constructors, simple copies,
-simple attribute/property access, simple `model_dump()` / `json.dumps()` / string formatting / alias conversion,
-or one obvious return expression.
+**No grandfather right.** Existing helpers and models in the input code earn nothing by already existing. During
+a rewrite, do not preserve or re-create a local batch/request/result model because the old code had one, because
+Pydantic is the default for *real* contracts, or because words like "batch" or "result" sound contract-like. If a
+list or result is consumed only inside one linear workflow and no API, framework, external boundary, validation
+rule, invariant, or serialization shape depends on it, keep the plain value. A wrapper does not pass the unwrap
+test by renaming itself `Batch` → `Request`, by moving the same linear loop into a method, or by gaining a result
+model — the method must protect an invariant, expose a real outward contract, adapt a boundary, or own reusable
+policy; otherwise inline the loop and return the plain value.
 
-The docstring requirement is not a reason to extract or preserve a helper. If the helper fails the audit, inline
-it and document the containing function instead.
+Judge by what a definition *decides, protects, constrains, or guarantees* — never by its name, its shape, or
+whether it can be given a clean docstring. Renaming `build_*` to `make_*`, splitting a 3-deep chain into 2, or
+adding a filler field to a wrapper does not change the verdict. The docstring requirement applies only after a
+definition has earned its place; if a span fails this gate, inline it and document the containing function
+instead.
 
 Do not replace one linear script with layered one-use orchestration helpers. A chain such as
 `main -> send_batch_once -> send_config_prompt_once -> send_prompt_once` is forbidden when each layer only

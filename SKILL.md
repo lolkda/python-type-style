@@ -8,310 +8,149 @@ description: Mandatory for every Python task, including application code, script
 ## Overview
 
 Enforce a strict, type-first engineering style on FastAPI + Pydantic v2 + SQLAlchemy 2 codebases targeting
-Python 3.12+. Apply these rules when writing new Python and when refactoring or reviewing existing code. Each
-section gives enforceable rules; for edge cases and rationale, follow the `Full treatment:` link to
+Python 3.12+. Apply these rules when writing new Python and when refactoring or reviewing existing code.
+
+This skill is gated by priority. Audit every definition in order: **Priority 0 — should it exist?** →
+**Priority 1 — is its contract shaped right?** → **Priority 2 — is its surface clean?** A later priority never
+offsets an earlier failure. The domain Quick Rules below (Class vs Function, Typing, Response, FastAPI,
+SQLAlchemy 2, Pydantic v2, Property, Async) are orthogonal to the priority gate: they apply whenever that
+technology appears, on top of P0/P1/P2. For edge cases and rationale, follow each `Full treatment:` link to
 `references/`, and see `examples/` for runnable counterparts.
 
-## Mandatory Scope
+Apply this skill to every Python task and every Python output: application code, scripts, CLI tools, tests,
+examples, one-off utilities, reviews, debugging, explanations, and design.
 
-Apply this skill to every Python output, not only production application code. Scripts, CLI tools, tests,
-examples, notebooks converted to Python, one-off utilities, code review comments, debugging patches,
-architecture sketches, and explanatory Python snippets all obey the same output gate.
+Apply it even when the user does not name the skill.
 
-If a user asks for Python code but does not mention this skill, still apply it. If a user asks to ignore part of
-this style, keep the stricter rule unless they explicitly request a deliberate deviation for compatibility and
-the deviation is documented next to the code.
+When rules conflict, keep the stricter rule unless the user explicitly requests a documented compatibility
+deviation.
 
-## Mandatory Python Output Gate
+## Priority 0 — Existence Before Quality
 
-Before producing any Python code or Python code review result, audit the output against this gate.
-If any check fails, do not present the code. Rewrite it until all checks pass.
+Existence is the first gate. Decide whether a function or model should exist *before* you give it a docstring, a
+type, or a Pydantic field. A perfectly documented, fully typed, keyword-only definition that should not exist is
+still a violation — decoration never offsets a Priority 0 failure.
 
-- Every class has a Chinese docstring describing business responsibility and key behavior semantics.
-- Every function, async function, method, property, overload stub, protocol stub, decorator wrapper, and private
-  helper has a Chinese docstring.
-- Every function-like docstring contains `Args` and `Returns`.
-- Public request/config object API names do not contain `build`, `build_`, or `Builder`.
-- Scattered `build_xxx(context=...)` helpers are not used when the outputs belong to one request/config/domain
-  object.
-- Straight-line script workflows stay straight-line. Do not split setup, one external call, printing/result
-  handling, and wait/retry into thin one-use helper functions.
-- Before finalizing rewritten Python, audit every top-level function and method introduced or preserved. Each
-  must be an entrypoint, framework/protocol hook, reused function, non-trivial parser/validator/transformer,
-  retry/error boundary, external-boundary adapter, or cohesive Pydantic object method with a real caller goal.
-- Thin-helper prohibition has priority over reuse count. A helper is not justified merely because it is called
-  two or more times when it only wraps simple ID/token/timestamp/random/default generation, sleeping, printing,
-  logging, one direct external call, simple construction, simple attribute forwarding, serialization, or one
-  obvious return expression.
-- Reuse justifies extraction only when the helper contains policy, validation, error handling, retry behavior,
-  protocol adaptation, non-trivial transformation, or a project invariant.
-- Extract a function only when it has reuse, meaningful branching, non-trivial parsing/transformation, boundary
-  adaptation, project invariants, test value, or materially improves readability.
-- Inline every one-use helper whose body only delegates to one obvious operation, returns one simple expression,
-  or forwards arguments without adding validation, branching, boundary adaptation, invariants, or test value.
-- Do not create thin call chains where `main()` calls a helper that calls another helper that only forwards to a
-  direct call. Inline linear call chains into the high-level flow unless a layer owns validation, retry/error
-  policy, protocol adaptation, state transition, or independently testable transformation.
-- The docstring requirement applies only after a function passes the extraction audit. Do not keep or create a
-  helper merely because it has a clear name or can be given a good docstring.
-- Request/config/domain object APIs prefer `Request.create().model_settings()` or equivalent cohesive object
-  methods, and those cohesive methods return Pydantic models rather than raw dictionaries.
-- Function and method parameters are keyword-only by default.
-- Stable request/config/domain contracts use Pydantic `BaseModel` by default.
-- Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
-- Raw dictionaries are allowed only as inline literals immediately consumed by a third-party, framework, or
-  external I/O call boundary, or as tiny single-function local values that are not returned, stored, passed
-  onward, or reused across branches.
-- `create()` / `from_*()` factories for request/config/domain objects do not assemble derived dictionaries,
-  JSON strings, external-call kwargs, headers, or body payloads.
-- Do not store serialized contract artifacts such as `*_json`, `*_dict`, `*_payload`, `*_body`, or `*_headers`
-  as stable request/config/domain state. Store semantic Pydantic models and serialize only at the final external
-  boundary.
-- Request/config/domain methods return Pydantic models for derived payloads; only explicit final-boundary
-  methods named `to_*_dict()` or `as_*_dict()` may return raw dictionaries.
-- Do not assign `to_*_dict()` / `as_*_dict()` results to variables such as `body_args`, `external_kwargs`, or
-  `payload_dict` for later indexing. Serialize inline at the actual external call boundary.
-- Do not build `extra_body`, `headers`, command args, file payloads, database parameters, or framework kwargs by
-  extracting pieces from an already serialized dict. Model the final external-boundary parameter shape and
-  serialize it once at the call boundary.
-- Final-boundary serializers dump one complete Pydantic boundary model once. Do not compose final dictionaries by
-  calling nested `to_*_dict()` / `as_*_dict()` serializers or by manually stitching repeated `model_dump()` pieces.
+Write the flow inline first. Start every script, handler, or workflow as one straight-line body; do not
+pre-split it into named steps.
 
-Do not output Python code that violates this gate.
+Then promote a span to its own function only by one of two independent warrants:
 
-## Mandatory Contract Model Rule
+- **Single-use — the inlining test.** Paste the span back into its sole caller. If the caller reads the same or
+  *easier*, the span is only "what happens next" (a call, a wait, a log, a construct, a serialize, a forward) —
+  keep it inline. Promote it only when inlining makes the caller *harder* to follow, i.e. the span owns a real
+  decision, a validation, an invariant, a retry/error boundary, or a protocol/serialization transform.
+- **Reuse — real shared behavior.** A span used at two or more call sites earns a function only when its body
+  carries policy, validation, error/retry handling, protocol adaptation, a non-trivial transform, or a project
+  invariant. Call count alone never earns it: a body that still only generates an ID/token/timestamp/default,
+  sleeps, logs, makes one external call, constructs, forwards, or serializes stays inline even when reused.
 
-For stable request/config/domain payloads, prefer Pydantic `BaseModel` by default.
+An external-boundary adapter is a warrant only when it *transforms* (maps a domain model to or from the external
+shape) or *absorbs* (handles the boundary's errors, retries, or policy). A function that only forwards one
+SDK/client call, renames its arguments, or wraps a single `run_sync` / `send` / `create` is not an adapter —
+inline it.
 
-Use raw `dict` only at final serialization boundaries. This includes any third-party, framework, or external I/O
-call boundary, for example SDK, HTTP, CLI, database, message queue, file, subprocess, browser automation, or plugin
-calls. These examples are not exhaustive.
+Models earn existence the same way, by what they *constrain or guarantee* — validation, an invariant, an outward
+contract, a serialization shape — not by what they *hold*. Apply the unwrap test: drop the layer and use the
+inner type directly; if no constraint or guarantee is lost, the layer must not exist. A model that only wraps a
+local list/batch/grouping, mirrors another model's fields, or re-wraps a value already shaped by its callee
+(`AModel(**b.model_dump())`) fails this test. Input code earns no grandfather right: a rewrite inlines such a
+wrapper instead of preserving it, and renaming it (`Batch` → `Request`) or hosting its one linear loop in a
+method does not save it.
 
-- Header/metadata literals passed directly into the call that consumes them.
-- JSON/body/argument literals passed directly into the sending or execution call.
-- Tiny single-function local literals that are not returned, stored, passed onward, or reused across branches.
+Judge by what a definition *decides, protects, constrains, or guarantees* — never by its name, its shape, or
+whether it can be given a clean docstring. Renaming `build_*` to `make_*`, splitting a 3-deep chain into 2, or
+adding a filler field to a wrapper does not change the verdict.
 
-Do not pass raw dictionaries, `Mapping`, or dict type aliases between project functions as stable contracts.
-Do not use `dict[str, object]` for request/config/domain state.
-If a dictionary crosses more than one function boundary, convert it to a Pydantic model.
-If a dictionary is assigned to a variable and then returned, stored on an object, passed to a project helper, or
-shared across branches, it is no longer a local literal; model it with Pydantic.
-
-Factory methods such as `create()` and `from_*()` may normalize constructor inputs, generate IDs, and choose
-defaults, but they must not assemble derived dictionaries, serialized JSON, external-call kwargs, headers,
-request bodies, command arguments, file payloads, or database parameters. Put each derived contract in its own
-Pydantic `BaseModel`.
-
-### No Serialized State Rule
-
-Serialized values are boundary artifacts, not domain/config state.
-
-Do not store JSON strings, serialized dictionaries, header dictionaries, request-body dictionaries, command
-argument dictionaries, or already-rendered payload strings on request/config/domain models. This also forbids
-fields whose names encode serialization state, such as `metadata_json`, `metadata_user_id`, `headers_dict`,
-`body_dict`, `payload_json`, `request_body`, or `external_kwargs`.
-
-Use semantic Pydantic models for state. If an external boundary requires a stringified JSON field, model the
-semantic value first and stringify it only inside the final boundary serializer.
-
-Forbidden:
-
-```python
-class ChatConfig(BaseModel):
-    metadata_user_id: str
-```
-
-Preferred:
-
-```python
-class MetadataUser(BaseModel):
-    device_id: str = Field(description="设备标识。")
-    account_uuid: str = Field(description="账号标识。")
-    session_id: str = Field(description="会话标识。")
-```
-
-Request/config/domain methods such as `headers()`, `payload()`, `body()`, `client_metadata()`, and
-`model_settings()` return Pydantic models by default. Raw dictionary returns are legal only in final boundary
-methods whose names make serialization explicit, such as `as_external_call_dict()`, `to_headers_dict()`, or
-`as_json_body_dict()`. Call those serializers adjacent to the actual external invocation; do not pass those
-dictionaries to other project functions.
-
-The serializer call must be inline or immediately inside the external call expression:
-
-```python
-external_client.send(**request.external_call_params().as_external_call_dict())
-```
-
-Forbidden:
-
-```python
-body_args = body.as_external_call_dict()
-responses.create(
-    model=body_args["model"],
-    extra_body={"client_metadata": body_args["client_metadata"]},
-)
-```
-
-Do not index into serialized dictionaries to rebuild external-call arguments. If the boundary needs nested
-payloads such as `extra_body`, `extra_headers`, command arguments, file metadata, database parameters, or similar
-kwargs, define those nested values as Pydantic models on one final boundary parameter model and dump that final
-model once at the call boundary.
-
-### One Final Dump Rule
-
-A final-boundary serializer serializes one complete Pydantic boundary model once.
-
-Prefer aliases, `exclude_none`, `@field_serializer`, `@model_serializer`, and nested Pydantic models over manual
-dictionary assembly. Do not implement final serializers by calling nested serializer methods and stitching the
-result together. Do not call `model_dump()` on several child models to manually build the parent payload.
-
-Forbidden:
-
-```python
-return {
-    "system": [block.to_api_dict() for block in self.system],
-    "metadata": self.metadata.model_dump(),
-}
-```
-
-Preferred:
-
-```python
-return self.model_dump(mode="json", by_alias=True, exclude_none=True)
-```
-
-Low-level external I/O or framework helper functions do not read request credentials such as `API_KEY` from module globals.
-Independent scripts may define a top-level `API_KEY`, but the high-level entrypoint must pass it explicitly into
-the request/config object or helper call.
-
-## Mandatory Object API Rewrite
-
-When the input code contains two or more public functions named `build_*`, or several functions pass the same
-`context`, `request`, `config`, `metadata`, or `settings` value, rewrite the design into one cohesive object.
-Read [references/object-api-style.md](references/object-api-style.md) and follow
-[examples/object_api_style.py](examples/object_api_style.py) before writing code.
-
-Required shape:
-
-```python
-request = DomainRequest.create()
-settings = request.model_settings()
-client.responses.create(**settings.as_external_call_dict())
-```
-
-Forbidden public shapes:
-
-```python
-build_context(...)
-build_headers(...)
-build_body(...)
-build_settings(...)
-RequestBuilder
-```
-
-## Core Rules
-
-- Use `from ... import ...` style imports consistently. Do not use wildcard imports.
-- Do not use `lambda`. Replace with named functions, built-in callables, or explicit logic.
-- Use keyword-only arguments for all function and method parameters by default with `*`.
-- Apply the same keyword-only rule to async functions and dependency callables unless a framework signature
-  forbids it.
-- Require docstrings on every function, async function, and class.
-- Every function docstring must be written in Chinese and include `Args` and `Returns` sections with business
-  meaning, not type labels.
-- This docstring rule applies to all function-like definitions, including `__init__`, `@property`,
-  `@cached_property`, `@computed_field`, `@hybrid_property`, `@overload` stubs, `Protocol` method stubs,
-  decorator inner wrappers, and private helpers.
-- Every class docstring must be written in Chinese and describe business responsibility and key behavior semantics.
-- Write explicit parameter and return types for all public methods.
-- Avoid `Any`. Use it only at hard interoperability boundaries; convert to strict models immediately after
-  entry.
-- Public or external API-facing methods must return explicit contract models, not raw `dict`, `list`, or
-  primitives.
-- Stable request/config/domain payloads use Pydantic `BaseModel` by default; dataclasses, type aliases,
-  `TypedDict`, and `Mapping` are not substitutes when the value crosses project function boundaries.
-- Request/config/domain classes use Pydantic `BaseModel` by default. Use `dataclass` only for pure internal
-  algorithm state with no aliases, validation, serialization, derived payloads, or stable boundary semantics.
-- Route handlers and stable outward service facades must use `BaseModel` response contracts wrapped by
-  `BaseResponse[T]`.
-- Repository methods, ORM accessors, and persistence-layer helpers may return ORM entities or SQLAlchemy result
-  objects when they do not cross an outward API boundary.
-- Internal helpers, local transforms, and module-private utilities may use lightweight structures only inside one
-  function body. Once a value is returned, stored, passed to another project function, or shared across modules,
-  it is a contract and must follow the stricter model rules.
-
-## Linear Flow Quick Rules
-
-- For scripts, examples, one-off utilities, and small CLI tools, prefer one readable top-level flow.
-- Keep setup -> call -> print/result -> wait/retry in the same function when the logic is linear and used once.
-- When rewriting existing Python, do not preserve the original function layout by default. Actively merge existing
-  one-use thin helpers into the caller before applying docstring, typing, or Pydantic cleanup.
-- Do not extract helper functions merely to name every step. A helper must first pass the thin-helper check, then
-  satisfy at least one:
-  1. Used by two or more call sites and contains real behavior beyond forwarding or a simple expression.
-  2. Contains meaningful branching, validation, parsing, retry, or error handling.
-  3. Adapts a protocol, serialization, framework, or external I/O boundary.
-  4. Encodes a project invariant that would be easy to misuse inline.
-  5. Makes a large block materially easier to test or review.
-- Do not keep a helper only because it is called two or more times. Simple UUID/token/timestamp/random/default
-  wrappers, direct external-call wrappers, one-expression serializers, and forwarding helpers stay inline unless
-  they add policy, validation, retry/error handling, protocol adaptation, non-trivial transformation, or an
-  invariant.
-- Inline trivial wrappers around simple ID/token/timestamp/random/default generation, waiting/sleeping,
-  logging/printing/result display, one SDK/client/framework call with no retry or error policy, simple copies,
-  simple attribute/property access, simple constructor calls, simple `model_dump()` / `json.dumps()` /
-  string-formatting / alias conversion, and helpers that only return one obvious expression.
-- Do not replace one linear script with layered helpers such as `send_batch_once -> send_config_prompt_once ->
-  send_prompt_once` when each layer only forwards arguments, creates one object, calls one dependency, or names a
-  step. Keep the orchestration in `main()` or the nearest high-level entrypoint.
-- For script-like files, the final code must not contain scattered top-level helpers for a linear setup -> call
-  -> output -> wait/retry flow. If more than `main()` plus schema/model classes remain, each remaining top-level
-  function must satisfy the extraction audit.
-- The docstring requirement is not a reason to extract or preserve a helper. If a helper has no real abstraction
-  value, inline it and document the containing function instead.
+Audit order, per definition: existence (this gate) → contract shape (Priority 1) → surface (Priority 2). A
+definition that fails this gate is inlined or deleted; do not document, type, or model it to make it look
+compliant.
 
 Full treatment: [references/class-vs-function.md](references/class-vs-function.md).
+
+## Priority 1 — Contract Shape
+
+A definition that survives Priority 0 must carry its state in the right contract shape before you touch its
+surface.
+
+Stable request/config/domain state uses Pydantic `BaseModel` by default. Do not pass raw `dict`, `Mapping`,
+dict aliases, or `dict[str, object]` between project functions as stable contracts. `dataclass`, `TypedDict`,
+and `Mapping` are not substitutes; reserve `dataclass` for pure internal algorithm state with no aliases,
+validation, serialization, derived payloads, or boundary semantics. Raw `dict` is allowed only as an inline
+literal consumed immediately by an external boundary, or as a tiny local value that is never returned, stored,
+passed onward, or reused across branches.
+
+Avoid `Any` for stable contracts and outward payloads; use it only at hard interop boundaries and convert
+immediately. Public or external API-facing methods return explicit contract models, not raw `dict`, `list`, or
+primitives.
+
+Store semantic models, not serialized state. Fields such as `*_json`, `*_dict`, `*_payload`, `*_body`,
+`*_headers`, `metadata_user_id`, or `external_kwargs` are boundary artifacts unless they are literal source
+values from the external domain. `create()` / `from_*()` factories normalize inputs, generate IDs, and choose
+defaults; they do not assemble derived dictionaries, JSON, headers, or external-call kwargs.
+
+Serialize only at the final external boundary. Dump one complete boundary model once; do not stitch several
+child `model_dump()` / `to_*_dict()` results into a parent dictionary. Derived payload methods return Pydantic
+models; only an explicit final-boundary serializer named `to_*_dict()` / `as_*_dict()` may return a raw dict,
+and it is called inline at the actual external call — never assigned to `body_args` / `external_kwargs` and
+indexed.
+
+Multiple `build_*`, `make_*`, `compose_*`, or similar helpers that share one `context`, `request`, `config`, or
+`settings` object are a fragmentation smell: collapse them into one cohesive object API whose caller-goal
+methods (`Request.create().model_settings()`) return Pydantic models. Cosmetic renames do not satisfy this rule.
+
+Public request/config/domain APIs do not use `build`, `build_`, or `Builder` in function, method, class, or
+public attribute names. Internal local names, fixtures, and third-party names are not the target.
+
+Full treatment: [references/pydantic-v2-style.md](references/pydantic-v2-style.md),
+[references/object-api-style.md](references/object-api-style.md),
+[references/architecture-boundary.md](references/architecture-boundary.md).
+
+## Priority 2 — Surface
+
+After Priority 0 and Priority 1 pass, every surviving class and every surviving function-like definition has a
+Chinese docstring. Function-like definitions include functions, async functions, methods, properties, overload
+stubs, protocol stubs, decorator wrappers, and private helpers that are already necessary. Their docstrings
+include `Args` and `Returns` with business meaning, not type labels. Class docstrings describe business
+responsibility and key behavior semantics.
+
+Do not create or preserve a definition merely to document it. The list above prevents skipping obscure surviving
+definitions; it is not permission to create those helpers.
+
+Every surviving definition also obeys these surface rules:
+
+- Keyword-only signatures by default with a leading `*`, including async functions and dependency callables
+  unless a framework signature forbids it.
+- Explicit parameter and return types for all public methods.
+- No `lambda`; replace with named functions, built-in callables, or explicit logic.
+- `from ... import ...` style imports; no wildcard imports.
+- Outward `BaseModel` fields use `Field(description="中文业务说明")`.
+
+## Never Output These Shapes
+
+This is a non-exhaustive rejection index. Each item points back to Priority 0 or Priority 1; the real verdict
+comes from what the definition decides, protects, constrains, or guarantees, not from matching names or shapes.
+
+- Thin helper that only calls, waits, logs, constructs, serializes, or forwards. → P0
+- Forwarding chain where each layer only calls the next layer. → P0
+- Pydantic model that only wraps a local list/batch/grouping, mirrors another model's fields, or pass-through re-wraps a callee's already-shaped value. → P0
+- Raw `dict` / `Mapping` / dict alias passed between project functions as request/config/domain state. → P1
+- Stable serialized state such as `*_json`, `*_dict`, `*_payload`, `metadata_user_id`, or `external_kwargs`. → P1
+- Final serializer that stitches child dumps instead of dumping one boundary model once. → P1
+- Public request/config/domain `build_*` / `Builder` API or cosmetic rename preserving the same fragmentation. → P1
+- `dataclass` / `TypedDict` / `Mapping` used as a stable request/config/domain contract. → P1
 
 ## Class vs Function Quick Rules
 
-- Default to module-level functions. Promote to a class only when at least one of:
-  1. **Long-lived state** carried across calls (cache / session / pool / cookies / in-memory index / caches with their own invalidation policy).
-  2. **Lifecycle** the caller must manage (`open → use → close`, `__aenter__/__aexit__`).
-  3. **Identity** — the object represents a system entity (`User`, `Order`, `Task`, `Session`, `Connection`).
-  4. **Behavior aggregated** around one shared internal dataset (`Cart.add_item` / `Cart.total_price`).
-  5. **Invariants** that must stay valid across mutations (`BankAccount` balance ≥ 0, state machine).
-  6. **Polymorphism** — multiple swappable implementations behind one interface (`StorageBackend`, `PaymentProvider`).
-  7. **Runtime context** binding several values for one execution scope (`RequestContext`, `CrawlerContext`).
-  8. **Concurrency ownership** — the object owns synchronization primitives or coordination state (lock, queue, semaphore, rate limiter, dedup window, retry controller).
-  9. **Protocol / sequenced operations** — multiple operations must occur in a strict order and the class enforces sequence correctness as an internal state machine (`connect → authenticate → send`).
-- Declarative-shape `class` (Pydantic `BaseModel`, `pydantic_settings.BaseSettings`, SQLAlchemy ORM,
-  `dataclass`) always stays class — class syntax used for schema, not for behavior.
-- This class-vs-function allowance does not make `dataclass` valid for stable request/config/domain contracts;
-  those use Pydantic `BaseModel` by default.
-- Forbidden: `class FooUtils:` / `class XxxHelpers:` whose body is only `@staticmethod` / `@classmethod`
-  with no shared state — Python modules are namespaces; flatten to module-level functions.
+- Default to module-level functions. Promote to a class only for long-lived state, lifecycle, identity, shared
+  dataset behavior, invariants, polymorphism, runtime context, concurrency ownership, or a sequenced protocol.
+- Declarative-shape classes (Pydantic `BaseModel`, `pydantic_settings.BaseSettings`, SQLAlchemy ORM,
+  `dataclass`) always stay classes — class syntax for schema, not behavior. This does not make `dataclass` valid
+  for stable request/config/domain contracts; those use Pydantic `BaseModel`.
+- Forbidden: `class XxxUtils:` / `class XxxHelpers:` whose body is only `@staticmethod` / `@classmethod` with no
+  shared state — Python modules are namespaces; flatten to module-level functions.
 
 Full treatment: [references/class-vs-function.md](references/class-vs-function.md).
-
-## Object API Quick Rules
-
-- When two or more related payloads are derived from the same context/request/config object, or one function
-  derives multiple stable payloads from that state, use one cohesive domain object with named methods.
-- Prefer `request = GatewayResponsesRequest.create(); settings = request.model_settings();
-  client.responses.create(**settings.as_external_call_dict())` over `context = create_context();
-  settings = build_model_settings(context=context)`.
-- Use domain nouns for the object (`GatewayResponsesRequest`, `WebhookDelivery`, `ReportExport`) and caller-goal
-  method names (`headers()`, `payload()`, `model_settings()`, `to_request()`).
-- Do not use `build` in public function, method, class, or variable names for request/config object APIs. Prefer
-  `create`, `from_*`, `to_*`, `as_*`, or direct caller-goal method names.
-- Keep pure standalone transforms as module-level functions. Do not create a class just to wrap one trivial
-  function.
-- Keep one-use orchestration code inline when the flow is linear. Object APIs model stable contracts; they do not
-  require extracting every step into a method or helper.
-- Avoid public `build_xxx(...)` helpers when they only expose intermediate assembly details that callers should
-  not coordinate.
-
-Full treatment: [references/object-api-style.md](references/object-api-style.md).
 
 ## Typing Quick Rules
 
@@ -368,19 +207,9 @@ Full treatment: [references/sqlalchemy2-style.md](references/sqlalchemy2-style.m
   `default` or `default_factory`.
 - Outward business models do not include `code` / `message` / `data` — those belong to `BaseResponse[T]`.
 - Non-field class attributes use `ClassVar[...]` to opt out of Pydantic field collection.
-- No mirror-model chains: do not add a `BaseModel` layer that does not change contract, validation,
-  serialization, permission, aggregation, or persistence semantics.
-- Do not create a `BaseModel` only to wrap a local list, batch, or temporary grouping when the wrapper adds no
-  validation, serialization, permission, invariant, lifecycle, or outward contract semantics.
-- No pass-through re-wrap at call sites: if a function's return shape and semantics equal its callee's
-  `BaseModel` return value, return that value directly. Do not reconstruct via `AModel(**b.model_dump())`
-  or `AModel.model_validate(b)`. The only allowed wrap is `BaseResponse.ok(...)` at an outward boundary,
-  because the envelope adds `code` / `message` semantics.
-- Config-first over new models: if a proposed new `BaseModel` differs from the source only by something
-  configurable on the source — `model_config = ConfigDict(...)`, `Field(serialization_alias=...,
-  validation_alias=..., exclude=..., default_factory=..., ...)`, or `@field_validator` /
-  `@model_validator` — configure the source model. Do not introduce a new layer to express a difference
-  that is really a config switch.
+- Use `@computed_field` paired with `@property` when a derived value must appear in `model_dump()` or OpenAPI.
+- Model existence — mirror-model chains, local-list/batch wrappers, pass-through re-wrap, and config-first
+  layering (a difference expressible via `ConfigDict` / `Field(...)` / a validator) — is decided at Priority 0.
 
 Full treatment: [references/pydantic-v2-style.md](references/pydantic-v2-style.md).
 
@@ -407,79 +236,11 @@ Full treatment: [references/property-usage.md](references/property-usage.md).
 
 Full treatment: [references/async-concurrency.md](references/async-concurrency.md).
 
-## Anti-patterns
-
-- `from module import *` or module-wide references that hide symbol ownership in business layers.
-- `lambda` in service logic, route handlers, or model builders.
-- Positional arguments in business functions; missing `*` separator.
-- Missing docstrings, non-Chinese function or class docstrings, or docstrings without `Args` / `Returns` business
-  context.
-- Thin one-use helper functions for simple ID/random generation, waiting/sleeping, logging/printing, direct
-  external calls, simple constructors, simple copies, or simple attribute access.
-- Treating "called twice" as enough reason to keep a helper whose body is still only UUID/token/random/default
-  generation, sleeping, printing, direct external calls, simple constructors, serialization, attribute
-  forwarding, or one obvious return expression.
-- Layered one-use orchestration helpers such as `send_batch_once -> send_config_prompt_once -> send_prompt_once`
-  where each layer only forwards arguments, creates one object, calls one dependency, or names a linear step.
-- A script whose main flow is harder to read because setup, one external call, printing/result handling, and
-  waiting/retry are scattered across many helper functions.
-- Extracting functions only to satisfy docstring style; inline helpers that have no real abstraction value.
-- Creating a Pydantic model only to wrap a local list, batch, or temporary grouping when the wrapper adds no
-  validation, serialization, permission, invariant, lifecycle, or outward contract semantics.
-- Scattered `build_xxx(context=...)` helpers that repeatedly pass the same context to assemble one conceptual
-  request/config object.
-- Public names containing `build`, `build_`, or `Builder` in request/config object APIs.
-- `Any` for stable contracts or outward response payloads.
-- Passing request/config/domain data through functions as `dict`, `Mapping`, `dict[str, object]`, or dict type
-  aliases instead of defining a Pydantic `BaseModel`.
-- Hiding stable contract dictionaries behind type aliases such as `type Headers = dict[str, str]` or
-  `type Body = dict[str, object]`.
-- `create()` or `from_*()` factories that assemble `turn_metadata: dict[...]`, `body: dict[...]`, headers,
-  JSON strings, external-call kwargs, or other derived payloads.
-- Stable request/config/domain models storing serialized derivatives such as `metadata_json`, `metadata_user_id`,
-  `headers_dict`, `body_dict`, `payload_json`, `request_body`, or `external_kwargs`.
-- Request/config/domain methods named `headers()`, `payload()`, `body()`, `client_metadata()`, or
-  `model_settings()` returning raw dictionaries instead of Pydantic models.
-- Passing a dictionary returned by a final serializer such as `as_external_call_dict()` into another project helper for
-  filtering, enrichment, or retry orchestration.
-- Final serializers manually stitching nested dictionaries through child `to_*_dict()` calls or repeated
-  `model_dump()` calls instead of dumping one complete Pydantic boundary model once.
-- Assigning `body_args = body.to_boundary_dict()` or `external_kwargs = settings.as_external_call_dict()` and then
-  indexing that dictionary to call an external dependency.
-- Building `extra_body={"client_metadata": body_args["client_metadata"]}` or similar nested boundary kwargs from
-  an already serialized dictionary.
-- Low-level external I/O or framework helpers reading `API_KEY`, tokens, or request credentials from module globals instead of
-  receiving them explicitly from the high-level entrypoint or config model.
-- Stable request/config/domain objects implemented as `@dataclass` while holding dictionaries or serialized
-  copies of dictionaries.
-- Claiming a value is an internal helper or local literal while returning it, storing it, passing it to another
-  project function, or sharing it across branches/modules.
-- Treating scripts, tests, examples, one-off utilities, or explanatory snippets as exempt from this style.
-- Raw `dict` / `list` / primitive returns from outward API boundaries.
-- Shorthand route decorators (`@router.get(...)`) lacking full metadata.
-- Implicit parameter sources or `user_id: int = Path(...)` default-style; use `Annotated[int, Path(...)]`.
-- Raising raw `HTTPException` for business validation failures.
-- `BaseModel` fields without `Field(...)`; non-Chinese or placeholder `description`.
-- Per-endpoint `XxxResponse` model duplicating `code` / `message` / `data` — use `BaseResponse[T]`.
-- Mirror-model chains (`UserOrmSchema` → `UserResponse` with identical fields).
-- Pass-through re-wrap at call sites: `return AModel(**b.model_dump())` or `return AModel.model_validate(b)` when no field, validation, permission, serialization, or aggregation change happens between caller and callee.
-- Spinning up a new `BaseModel` layer to express a difference that could be set on the source model via `ConfigDict`, `Field(...)` options, or a validator (alias / `by_alias` / `extra` / `frozen` / `exclude` / serialization shape, etc.) — configure the source model instead.
-- Class-level constants on Pydantic v2 models without `ClassVar[...]`.
-- Legacy `session.query(...)` in new SQLAlchemy 2 code; ORM columns without `Mapped[...]`.
-- Sharing one `Session` / `AsyncSession` across unrelated request or task scopes.
-- Sync ORM access inside async request flows; blocking I/O inside `async def`.
-- Importing `typing.List` / `Dict` / `Tuple` / `Sequence` / `Mapping` — use built-in or `collections.abc`.
-- Enabling `from __future__ import annotations` project-wide on a Pydantic / FastAPI codebase.
-- Substituting `TypedDict` for `BaseModel` at outward API boundaries.
-- `@property` on a `BaseModel` when the value must appear in `model_dump()` / OpenAPI — use `@computed_field` paired with `@property`.
-- `@cached_property` on a mutable ORM entity or mutable Pydantic model without an invalidation strategy.
-- `@xxx.setter` on Pydantic / ORM domain models for business validation — use validators or named methods.
-- `class XxxUtils:` / `class XxxHelpers:` whose body is only `@staticmethod` / `@classmethod` with no shared state — Python modules are namespaces; flatten to module-level functions.
-
 ## References Index
 
 | Topic | Reference | Runnable example |
 |---|---|---|
+| Existence gate, class vs function decision, linear-flow / thin-helper anti-patterns | [class-vs-function.md](references/class-vs-function.md) | [linear_flow.py](examples/linear_flow.py) |
 | Typing defaults, project exceptions, and forbidden legacy forms | [typing-usage.md](references/typing-usage.md) | [repository.py](examples/repository.py), [protocol.py](examples/protocol.py), [overload.py](examples/overload.py), [paramspec.py](examples/paramspec.py) |
 | Unified response envelope `BaseResponse[T]` + `PageData[T]` + exception handlers | [response-contract.md](references/response-contract.md) | [base_response.py](examples/base_response.py), [route.py](examples/route.py) |
 | FastAPI routes, parameter sources, error handling, deviations for streaming | [fastapi-style.md](references/fastapi-style.md) | [route.py](examples/route.py), [base_response.py](examples/base_response.py) |
@@ -489,4 +250,3 @@ Full treatment: [references/async-concurrency.md](references/async-concurrency.m
 | Object API style for replacing scattered `build_xxx(context=...)` helpers with cohesive request/config objects | [object-api-style.md](references/object-api-style.md) | [object_api_style.py](examples/object_api_style.py) |
 | Async safety, blocking I/O, sync-in-async anti-patterns | [async-concurrency.md](references/async-concurrency.md) | — |
 | Outward vs persistence boundary, exceptions and priorities, deviation rules | [architecture-boundary.md](references/architecture-boundary.md) | — |
-| Class vs Function decision checklist and namespace-grouping anti-patterns | [class-vs-function.md](references/class-vs-function.md) | — |
