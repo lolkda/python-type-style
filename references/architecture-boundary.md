@@ -48,6 +48,14 @@ when data leaves the service boundary.
 - Low-level external I/O or framework helpers do not read request credentials such as `API_KEY`, bearer tokens,
   tenant IDs, or session IDs from module globals. Standalone scripts may define top-level constants, but
   high-level entrypoints must pass credential/config values explicitly into request/config models or helper calls.
+- `create()` and value-named `from_*` factories (naming an in-hand value, e.g. `from_dict` / `from_cli_metadata`)
+  perform no I/O during construction. Only a source-named ingress factory (`from_os` / `from_env` / `from_file`)
+  reads, and only the one source its name declares — never a second. The name is a contract it must honor.
+- Explicit ingress factories are selected by the high-level entrypoint and their result passed in as a semantic
+  value; `create()` or a value-named `from_*` must not call them as an optional-parameter fallback. An optional
+  parameter's `None` fallback must not reach for external state — allow only dependency-free in-process
+  generation (UUID / token / timestamp / constant default), never a file / env / cache / SDK / global-mutable
+  read.
 - Streaming and file responses may use `response_class` instead of `BaseResponse[T]`. The unified envelope rule
   applies only to JSON contract endpoints; metadata completeness and docstring requirements remain mandatory.
 
@@ -59,3 +67,7 @@ when data leaves the service boundary.
 - Exposing internal helper data structures (named tuples, dataclasses without semantic meaning) across module
   boundaries.
 - Hidden global credential reads inside low-level external I/O or framework helpers.
+- `create()` or a value-named `from_*` factory that reads a config file, environment, or SDK to fill a field or
+  default; or a source-named ingress (`from_os` / `from_file`) that reaches a second, undeclared source.
+- Optional parameter whose `None` fallback fetches external state, hiding the read from callers.
+- A read-of-existing-value named `new_*` / `generate_*` instead of `read_*` / `load_*`.

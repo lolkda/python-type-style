@@ -30,6 +30,21 @@ first, then apply these rules to the surviving Pydantic contracts.
   serialization, derived payloads, or stable boundary semantics.
 - Factory methods create models only; they do not assemble derived dictionaries, serialized JSON,
   external-call kwargs, headers, body payloads, command arguments, file payloads, or database parameters.
+- `create()` and value-named factories (`from_dict` / `from_orm` / `from_cli_metadata`, naming an in-hand value)
+  perform no I/O during construction. Only a source-named ingress factory (`from_os` / `from_env` / `from_file`,
+  naming an external source) reads, and only the one source its name declares — never a second source. The name
+  is a contract the factory must honor: a `from_os` that opens a config file is lying about its declared source.
+- Default provenance is visible. A stable request/config/domain default sourced from a file, environment,
+  network, DB, or SDK is resolved by the high-level entrypoint and passed in; a factory does not backfill
+  external state inside an optional parameter's `None` fallback (`device_id: str | None = None` then
+  `device_id or read_device_id()`). Explicit ingress factories are selected by the high-level caller; `create()`
+  or value-named `from_*` must not call them as a fallback — `device_id or cls.from_file().device_id` is
+  forbidden. The only allowed `None` fallback is pure in-process generation: dependency-free UUID / token /
+  timestamp / constant default. It excludes files, env, caches, SDK / plugin / browser state, process-global
+  mutable config, and any value derived from a prior external read.
+- Use `read_*` / `load_*` / `from_<source>` names for external provenance. Reserve `new_*` / `generate_*` for
+  dependency-free in-process generation; a read-of-existing-value named `new_*` misleads (`new_device_id()` that
+  reads a config file).
 - Stable request/config/domain models store semantic Pydantic values, not serialized artifacts such as
   `metadata_json`, `metadata_user_id`, `headers_dict`, `body_dict`, `payload_json`, `request_body`, or
   `external_kwargs`.
@@ -97,7 +112,7 @@ Use `@field_serializer` or `@model_serializer` when one field must render differ
 | Local grouping | Keep local lists, batches, and temporary groups as local values. | Add a model only when it owns validation, serialization, permissions, invariants, lifecycle, or outward contract semantics. | `BaseModel` wrappers around local lists or batches that only rename the collection. |
 | Call sites | Return existing `BaseModel` values directly. | Wrap with `BaseResponse.ok(...)` at outward boundaries. | Pass-through re-wrap with `model_dump()` / `model_validate()`. |
 | Contract state | Pydantic `BaseModel` for stable request/config/domain payloads. | Raw `dict` only as inline external-boundary literals or tiny single-function local values. | Dict aliases, `Mapping`, `TypedDict`, dataclasses, or `dict[str, object]` passed between project functions. |
-| Factory behavior | Create and return Pydantic models only. | ID/time/default generation needed for construction. | Factories assembling dictionaries, JSON strings, headers, body payloads, command args, database parameters, or external-call kwargs. |
+| Factory behavior | Create and return Pydantic models only. | Pure in-process ID/time/default generation for construction. | Factories assembling dictionaries, JSON, headers, body payloads, command args, DB parameters, or external-call kwargs; performing hidden file/env/network/DB/subprocess/SDK I/O; or backfilling an optional parameter's `None` fallback from external state. |
 | Serialized state | Store semantic Pydantic models. | Boundary-only field serializers for APIs that require rendered strings. | Stable fields named like `*_json`, `*_dict`, `*_payload`, `metadata_user_id`, `request_body`, or `external_kwargs`. |
 | Serialization boundary | `to_*_dict()` / `as_*_dict()` inline at final external calls. | Tiny local literals that are not returned, stored, passed onward, or reused across branches. | Assigning serialized dictionaries to `body_args` / `external_kwargs` and indexing them later. |
 | Nested boundary kwargs | Nested Pydantic fields on one final external-boundary parameter model. | Tiny inline literals consumed by the same third-party, framework, or external I/O call. | `extra_body={"client_metadata": body_args["client_metadata"]}` built from serialized data. |
@@ -127,6 +142,14 @@ Use `@field_serializer` or `@model_serializer` when one field must render differ
   it across branches.
 - `create()` / `from_*()` factories that assemble metadata dictionaries, request bodies, headers,
   external-call kwargs, command arguments, file payloads, database parameters, or JSON strings.
+- `create()` or a value-named `from_*` factory (`from_dict` / `from_orm` / `from_cli_metadata`) that reads a
+  file, environment, network, DB, or SDK during construction.
+- A source-named ingress (`from_os` / `from_env` / `from_file`) that reads a second, undeclared source, or that
+  is invoked as an optional-parameter fallback instead of being selected by the high-level caller. Reading its
+  one declared source is its job, not an anti-pattern.
+- Optional request/config/domain parameter whose `None` fallback fetches external state (`x: T | None = None`
+  then `x or load_x()`), instead of the entrypoint resolving it.
+- A persisted-value read named `new_*` / `generate_*` instead of `read_*` / `load_*`.
 - Stable request/config/domain fields storing serialized derivatives such as `metadata_json`,
   `metadata_user_id`, `headers_dict`, `body_dict`, `payload_json`, `request_body`, or `external_kwargs`.
 - Derived payload methods returning dictionaries instead of Pydantic models.

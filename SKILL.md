@@ -50,6 +50,16 @@ shape) or *absorbs* (handles the boundary's errors, retries, or policy). A funct
 SDK/client call, renames its arguments, or wraps a single `run_sync` / `send` / `create` is not an adapter —
 inline it.
 
+A `count` / `size` / `batch` / `repeat` parameter earns no function. Judge the behavior, not the name: inline a
+span into its sole caller when **all** hold — it has one call site, the looped count is a literal or statically
+fixed constant at the call site (a literal `1`, a module constant set to `1`, or a default constant not sourced
+from user/config/runtime input), the loop body only calls / waits / logs / constructs / appends / prints /
+serializes / forwards, and any guard it carries only rejects an out-of-range value of a parameter the span itself
+introduced (`if size < 1: raise`). That guard is not the validation warrant. The loop earns its own function only
+with real batch policy: chunking, rate limiting, concurrency, retry, error aggregation, or two-or-more call
+sites. `send_batch_once` / `run_once` / `process_batch` are instances of this shape, not the test — a rename
+rescues nothing.
+
 Models earn existence the same way, by what they *constrain or guarantee* — validation, an invariant, an outward
 contract, a serialization shape — not by what they *hold*. Apply the unwrap test: drop the layer and use the
 inner type directly; if no constraint or guarantee is lost, the layer must not exist. A model that only wraps a
@@ -87,7 +97,20 @@ primitives.
 Store semantic models, not serialized state. Fields such as `*_json`, `*_dict`, `*_payload`, `*_body`,
 `*_headers`, `metadata_user_id`, or `external_kwargs` are boundary artifacts unless they are literal source
 values from the external domain. `create()` / `from_*()` factories normalize inputs, generate IDs, and choose
-defaults; they do not assemble derived dictionaries, JSON, headers, or external-call kwargs.
+defaults; they do not assemble derived dictionaries, JSON, headers, or external-call kwargs. `create()` and
+value-named factories (`from_dict` / `from_orm` / `from_cli_metadata`, naming an in-hand value) perform no I/O.
+Only a source-named ingress factory (`from_os` / `from_env` / `from_file`, naming an external source) reads, and
+only the one source its name declares — never a second source. The name is a contract the factory must honor, not
+a label to evade.
+
+Default provenance must be visible. When a stable request/config/domain default comes from a file, env, network,
+DB, or SDK, the high-level entrypoint resolves it and passes it in. A factory must not backfill external state in
+an optional parameter's `None` fallback: `device_id: str | None = None` then `device_id or read_device_id()`
+hides the read from every caller of the signature. Explicit ingress factories are selected by the high-level
+caller; `create()` or value-named `from_*` must not call them as a fallback (`device_id or cls.from_file()` is
+forbidden). The only allowed `None` fallback is pure in-process generation — dependency-free UUID / token /
+timestamp / constant default — excluding files, env, caches, SDK / plugin / browser state, process-global mutable
+config, or any value derived from a prior external read.
 
 Serialize only at the final external boundary. Dump one complete boundary model once; do not stitch several
 child `model_dump()` / `to_*_dict()` results into a parent dictionary. Derived payload methods return Pydantic
@@ -139,6 +162,8 @@ comes from what the definition decides, protects, constrains, or guarantees, not
 - Final serializer that stitches child dumps instead of dumping one boundary model once. → P1
 - Public request/config/domain `build_*` / `Builder` API or cosmetic rename preserving the same fragmentation. → P1
 - `dataclass` / `TypedDict` / `Mapping` used as a stable request/config/domain contract. → P1
+- Count/batch helper kept alive only by a `count` / `size` parameter or a `if size < 1: raise` guard, while its sole call site passes a literal or statically fixed constant and the loop body is trivial. → P0
+- Factory performing hidden file/env/network/DB/subprocess/SDK I/O, an optional parameter whose `None` fallback fetches external state (`x or load_x()`), or a persisted-value read named `new_*` / `generate_*`. → P1
 
 ## Class vs Function Quick Rules
 

@@ -43,6 +43,20 @@ from the external shape) or *absorbs* (handles the boundary's errors, retries, o
 forwards one SDK/client call, renames its arguments, or wraps a single `run_sync` / `send` / `create` is not an
 adapter — inline it.
 
+**Count and batch parameters — behavior, not name.** A `count` / `size` / `batch` / `repeat` parameter and the
+`for _ in range(n)` loop it drives are a trivial continuation, not an abstraction. Judge by behavior: inline the
+span into its sole caller when it has one call site, the looped count is a literal or statically fixed constant
+at the call site (a literal `1`, a module constant set to `1` such as `REQUESTS_PER_BATCH = 1`, or a default
+constant not sourced from user/config/runtime input), the loop body only calls / waits / logs / constructs /
+appends / prints / serializes / forwards, and any guard it carries only rejects an out-of-range value of a
+parameter the span itself introduced (`if size < 1: raise`). That guard is not the validation warrant — a
+validation warrant protects a real domain invariant, never a synthetic knob the function invented; a count that
+is a fixed constant at the one call site is not a degree of freedom and proves nothing about batch abstraction.
+The loop earns its own function only when its body owns real batch policy: chunking, rate limiting, concurrency,
+retry, error aggregation, or two-or-more distinct call sites. None of this is changed by the name:
+`send_batch_once`, `run_once`, and `process_batch` are common instances of the shape, and renaming to
+`dispatch_many` rescues nothing.
+
 **Models — the unwrap test.** Models earn existence the same way, by what they *constrain or guarantee* —
 validation, an invariant, an outward contract, a serialization shape — not by what they *hold*. Drop the layer
 and use the inner type directly; if no constraint or guarantee is lost, the layer must not exist. A model that
@@ -68,7 +82,9 @@ Do not replace one linear script with layered one-use orchestration helpers. A c
 `main -> send_batch_once -> send_config_prompt_once -> send_prompt_once` is forbidden when each layer only
 forwards arguments, creates one object, calls one dependency, or names a step. Keep the orchestration in `main()`
 or the nearest high-level entrypoint unless a layer owns retry/error policy, protocol adaptation, validation,
-state transition, or a reusable tested transformation.
+state transition, or a reusable tested transformation. Parameterizing such a layer with a `size` / `count`
+argument and a `if size < 1: raise` guard does not rescue it; a synthetic knob that is always a literal or
+statically fixed constant at the one call site, driving a trivial loop, is still inlined.
 
 ## Class Checklist
 
@@ -99,6 +115,9 @@ Any **yes** means class is allowed. All **no** means module-level function.
 - Thin helper functions kept only because they are called twice, even though the body is still simple
   ID/token/random/default generation, sleeping, printing, direct external calls, simple constructors,
   serialization, attribute forwarding, or one obvious return expression.
+- A `for _ in range(n)` batch/once helper kept alive by a `count` / `size` parameter or a `if size < 1: raise`
+  guard, while its sole call site passes a literal or statically fixed constant and the loop body only
+  constructs, calls, appends, prints, or forwards.
 - A script whose main flow is harder to follow because each linear step is moved into a separate helper.
 - Layered one-use orchestration helpers where each function only forwards to the next function in a straight-line
   flow.
